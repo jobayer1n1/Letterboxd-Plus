@@ -1,4 +1,4 @@
-## Setup
+## Setup for Chrome
 1. **Download Latest Release:** Download the `letterboxd-plus.zip` file from the releases section
 2. **Unzip it:** Extract/unzip it.
 3. **Go to Extension Manager:** In Chrome, type `chrome://extensions/` into the URL address bar and press Enter.
