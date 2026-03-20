@@ -1,0 +1,7 @@
+﻿/node_modules
+*.log
+.DS_Store
+sample_letterboxd_movie_endpoint.html
+addon_plan.txt
+mdn_gecko.md
+/src/letterboxd-plus.zip

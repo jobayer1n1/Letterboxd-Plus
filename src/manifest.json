@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Letterboxd+",
+  "version": "1.0",
+  "description": "Make your letterboxd a streaming platform",
+  "permissions": ["activeTab"],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.letterboxd.com/film/*"
+      ],
+      "js": ["scripts/content.js"],
+      "css": ["styles/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "letterboxdplus@example.com",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icon/icon16.png"],
+      "matches": ["*://*.letterboxd.com/*"]
+    }
+  ],
+  "icons": {
+    "16": "icon/icon16.png",
+    "48": "icon/icon48.png",
+    "128": "icon/icon128.png"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icon/icon16.png",
+      "48": "icon/icon48.png",
+      "128": "icon/icon128.png"
+    }
+  }
+}
