@@ -1,5 +1,53 @@
 (function () {
+    const STORAGE_KEY = 'scriptsEnabled';
+    const STORAGE_SERVERS_KEY = 'serverTemplates';
+    let scriptsEnabled = true;
+    const DEFAULT_SERVERS = Array.isArray(globalThis.LETTERBOXD_PLUS_DEFAULT_SERVERS)
+        ? globalThis.LETTERBOXD_PLUS_DEFAULT_SERVERS
+        : [];
+
+    function normalizeTemplate(template) {
+        return String(template || '').trim().toLowerCase();
+    }
+
+    function loadServerDefinitions(tmdbId, callback) {
+        chrome.storage.local.get({ [STORAGE_SERVERS_KEY]: DEFAULT_SERVERS }, (result) => {
+            const saved = Array.isArray(result[STORAGE_SERVERS_KEY]) ? result[STORAGE_SERVERS_KEY] : [];
+            const merged = [];
+            const seen = new Set();
+            const pushUnique = (server) => {
+                if (!server || !server.name || !server.template) return;
+                const normalized = normalizeTemplate(server.template);
+                if (!normalized || seen.has(normalized)) return;
+                merged.push({ name: String(server.name).trim(), template: String(server.template).trim() });
+                seen.add(normalized);
+            };
+
+            DEFAULT_SERVERS.forEach(pushUnique);
+            saved.forEach(pushUnique);
+
+            const servers = merged
+                .map(server => ({
+                    name: server.name,
+                    src: server.template.replaceAll('{tmdbId}', tmdbId)
+                }))
+                .filter(server => server.name && server.src);
+
+            callback(servers);
+        });
+    }
+
+    function removeInjectedUI() {
+        const btn = document.getElementById('letterboxd-plus-item');
+        if (btn) btn.remove();
+
+        const streamSection = document.getElementById('letterboxd-plus-stream-section');
+        if (streamSection) streamSection.remove();
+    }
+
     function init() {
+        if (!scriptsEnabled) return;
+
         const body = document.body;
         const tmdbId = body.getAttribute('data-tmdb-id');
 
@@ -111,42 +159,24 @@
     }
 
     function createStreamSection(tmdbId) {
+        if (!scriptsEnabled) return;
         if (document.getElementById('letterboxd-plus-stream-section')) return;
 
         const streamSection = document.createElement('section');
         streamSection.id = 'letterboxd-plus-stream-section';
         streamSection.className = 'letterboxd-plus-container section -clear';
-
-        // Server selection header
         const serverSelector = document.createElement('section');
         serverSelector.className = 'letterboxd-plus-servers';
         const span = document.createElement('span');
         span.textContent = 'Select Server: ';
         serverSelector.appendChild(span);
 
-        const servers = [
-            { name: 'Vidfast (Server 1)', src: `https://vidfast.pro/movie/${tmdbId}?autoPlay=true`, active: true },
-            { name: 'Vidlink (Server 2)', src: `https://vidlink.pro/movie/${tmdbId}` },
-            { name: 'VidSrc (Server 3)', src: `https://vidsrc.me/embed/movie?tmdb=${tmdbId}` },
-            { name: 'VidSrc.xyz (Server 4)', src: `https://vidsrc.xyz/embed/movie?tmdb=${tmdbId}` },
-            { name: '111movies (Server 5)', src: `https://111movies.net/movie/${tmdbId}` },
-            { name: '2embed (Server 6)', src: `https://www.2embed.online/embed/movie/${tmdbId}` }
-        ];
-
-        servers.forEach(server => {
-            const btn = document.createElement('button');
-            btn.className = 'server-btn' + (server.active ? ' active' : '');
-            btn.setAttribute('data-src', server.src);
-            btn.textContent = server.name;
-            serverSelector.appendChild(btn);
-        });
-
         // Iframe wrapper for 16:9 aspect ratio
         const iframeWrapper = document.createElement('div');
         iframeWrapper.className = 'letterboxd-plus-iframe-wrapper';
 
         const iframe = document.createElement('iframe');
-        iframe.src = `https://vidlink.pro/movie/${tmdbId}`;
+        iframe.src = '';
         iframe.frameBorder = "0";
         iframe.allowFullscreen = true;
 
@@ -173,29 +203,73 @@
             }
         }
 
-        // Server button click logic
-        const buttons = serverSelector.querySelectorAll('.server-btn');
-        buttons.forEach(b => {
-            b.addEventListener('click', (e) => {
-                buttons.forEach(btn => btn.classList.remove('active'));
-                b.classList.add('active');
-                iframe.src = b.getAttribute('data-src');
+        loadServerDefinitions(tmdbId, (servers) => {
+            servers.forEach((server, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'server-btn' + (index === 0 ? ' active' : '');
+                btn.setAttribute('data-src', server.src);
+                btn.textContent = server.name;
+                serverSelector.appendChild(btn);
+            });
+
+            iframe.src = servers[0].src;
+
+            // Server button click logic
+            const buttons = serverSelector.querySelectorAll('.server-btn');
+            buttons.forEach((b) => {
+                b.addEventListener('click', () => {
+                    buttons.forEach(btn => btn.classList.remove('active'));
+                    b.classList.add('active');
+                    iframe.src = b.getAttribute('data-src');
+                });
             });
         });
-
         // Scroll smoothly to the loaded iframe
         streamSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    // Attempt to inject on standard load
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
+    function startInjection() {
+        // Attempt to inject on standard load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+
+        // Since Letterboxd might dynamically swap page content or load heavily cached HTML dynamically,
+        // setting a small timeout helps catch dynamically appearing `.services` boxes.
+        setTimeout(init, 1000);
     }
 
-    // Since Letterboxd might dynamically swap page content or load heavily cached HTML dynamically,
-    // setting a small timeout helps catch dynamically appearing `.services` boxes.
-    setTimeout(init, 1000);
+    chrome.storage.local.get({ [STORAGE_KEY]: true }, (result) => {
+        scriptsEnabled = Boolean(result[STORAGE_KEY]);
+        if (scriptsEnabled) {
+            startInjection();
+        } else {
+            removeInjectedUI();
+        }
+    });
+
+    chrome.runtime.onMessage.addListener((message) => {
+        if (!message || message.type !== 'LETTERBOXD_PLUS_TOGGLE') return;
+
+        scriptsEnabled = Boolean(message.enabled);
+        if (scriptsEnabled) {
+            init();
+            setTimeout(init, 100);
+        } else {
+            removeInjectedUI();
+        }
+    });
+    chrome.runtime.onMessage.addListener((message) => {
+        if (!message || message.type !== 'LETTERBOXD_PLUS_SERVERS_UPDATED') return;
+
+        const streamSection = document.getElementById('letterboxd-plus-stream-section');
+        if (streamSection) {
+            streamSection.remove();
+            const tmdbId = document.body.getAttribute('data-tmdb-id');
+            if (scriptsEnabled && tmdbId) createStreamSection(tmdbId);
+        }
+    });
 
 })();

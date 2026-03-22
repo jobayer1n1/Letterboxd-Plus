@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Letterboxd+</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="wrap">
+    <div class="topbar">
+      <div class="brand-wrap">
+        <h1>Letterboxd+</h1>
+        <p id="appVersion" class="app-version"></p>
+      </div>
+      <div class="toggle-wrap">
+        <label class="toggle" for="scriptToggle" title="Enable or disable Letterboxd+ scripts">
+          <input id="scriptToggle" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+        <p id="toggleState" class="toggle-state">DISABLED</p>
+      </div>
+    </div>
+
+    <div class="update-row">
+      <div class="update-left">
+        <button id="checkUpdateBtn" class="update-btn" type="button">Check Update</button>
+        <p id="updateResult" class="update-result">Not checked</p>
+      </div>
+      <button id="latestReleaseBtn" class="release-btn hidden" type="button">Take Me to the Latest Release Page</button>
+    </div>
+
+    <section class="servers-card">
+      <div class="servers-head">
+        <button id="serversToggleBtn" class="section-toggle" type="button" aria-expanded="false">
+          <span>Servers</span>
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      <div id="serversBody" class="servers-body hidden">
+        <div class="add-actions">
+          <button id="addServerBtn" class="add-btn" type="button">Add Server +</button>
+          <button id="manualBtn" class="manual-btn" type="button">Check Manual to Add Server</button>
+        </div>
+
+        <div id="addServerForm" class="add-form hidden">
+          <label class="input-label" for="serverName">Name</label>
+          <input id="serverName" class="input" type="text" placeholder="SmashyStream" />
+
+          <label class="input-label" for="serverLink">Link Template</label>
+          <input id="serverLink" class="input" type="text" placeholder="https://player.example.com/movie/{tmdbId}" />
+          <p class="hint">Use <code>{tmdbId}</code> in the link.</p>
+
+          <div class="form-actions">
+            <button id="checkConnectionBtn" class="btn secondary" type="button">Check connection</button>
+            <button id="saveServerBtn" class="btn primary" type="button">Save server</button>
+          </div>
+          <p id="serverFeedback" class="feedback"></p>
+        </div>
+
+        <p class="saved-tag">Saved:</p>
+        <div id="serverList" class="server-list"></div>
+      </div>
+    </section>
+
+    <footer class="popup-footer">
+      <p class="footer-note">Use an ad blocker for a smoother experience</p>
+      <div class="footer-actions">
+        <a
+          class="github-link"
+          href="https://github.com/jobayer1n1/Letterboxd-Plus"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open GitHub repository"
+          aria-label="Open GitHub repository"
+        >
+          <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+            <path d="M12 .5A11.5 11.5 0 0 0 .5 12.2c0 5.2 3.4 9.5 8 11.1.6.1.8-.2.8-.6v-2.1c-3.3.8-4-1.4-4-1.4-.6-1.4-1.3-1.8-1.3-1.8-1.1-.8.1-.8.1-.8 1.2.1 1.9 1.2 1.9 1.2 1.1 1.9 2.9 1.4 3.6 1.1.1-.8.4-1.4.8-1.7-2.7-.3-5.5-1.4-5.5-6.1 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11 11 0 0 1 6 0c2.3-1.6 3.3-1.2 3.3-1.2.7 1.6.3 2.8.1 3.1.8.8 1.2 1.9 1.2 3.2 0 4.8-2.9 5.8-5.6 6.1.4.4.9 1.1.9 2.3v3.3c0 .3.2.7.8.6a11.7 11.7 0 0 0 8-11.1A11.5 11.5 0 0 0 12 .5Z"/>
+          </svg>
+        </a>
+      </div>
+    </footer>
+  </main>
+
+  <script src="../scripts/server-defaults.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
