@@ -17,7 +17,7 @@ const serverListEl = document.getElementById("serverList");
 const manualBtn = document.getElementById("manualBtn");
 
 
-const manualUrl = "https://github.com/jobayer1n1/Letterboxd-Plus/blob/main/src/add_server.md";
+const manualUrl = "https://github.com/jobayer1n1/Letterboxd-Plus/blob/main/add_server.md";
 const releaseApiUrl = "https://api.github.com/repos/jobayer1n1/Letterboxd-Plus/releases/latest";
 const STORAGE_ENABLED_KEY = "scriptsEnabled";
 const STORAGE_SERVERS_KEY = "serverTemplates";
