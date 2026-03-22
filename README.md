@@ -30,7 +30,7 @@ So ad-blocking is recommended externally (for smoother playback).
 - Users can check from popup using `Check Update`.
 - If newer release exists, popup shows:
   - `Update Available <tag>`
-  - `Take Me to the Latest Release Page` button.
+  - `Update` button.
 - Then user manually installs latest zip/xpi.
 
 ---
