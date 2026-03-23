@@ -1,4 +1,11 @@
 (function () {
+    const PLAY_SVG = `<svg viewBox="0 0 24 24"><path d="M8,5.14V19.14L19,12.14L8,5.14Z"/></svg>`;
+    const PAUSE_SVG = `<svg viewBox="0 0 24 24"><path d="M14,19H18V5H14M6,19H10V5H6V19Z"/></svg>`;
+    const VOL_SVG = `<svg viewBox="0 0 24 24"><path d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.85 14,18.71V20.77C18.07,19.86 21,16.28 21,12C21,7.72 18.07,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16.02C15.5,15.29 16.5,13.77 16.5,12M3,9V15H7L12,20V4L7,9H3Z"/></svg>`;
+    const MUTE_SVG = `<svg viewBox="0 0 24 24"><path d="M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L4.27,3M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18.07,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.48,12.43 16.5,12.22 16.5,12Z"/></svg>`;
+    const FULL_SVG = `<svg viewBox="0 0 24 24"><path d="M7,14H5V19H10V17H7V14M5,10H7V7H10V5H5V10M17,17H14V19H19V14H17V17M14,5V7H17V10H19V5H14Z"/></svg>`;
+    const MIN_SVG = `<svg viewBox="0 0 24 24"><path d="M14,14H19V16H16V19H14V14M5,16H10V14H5V16M19,8H14V5H16V8H19V10M10,8H5V10H8V5H10V8Z"/></svg>`;
+    const CC_SVG = `<svg viewBox="0 0 24 24"><path d="M19,4H5C3.89,4 3,4.9 3,6v12c0,1.1 0.89,2 2,2h14c1.1,0 2,-0.9 2,-2V6C21,4.9 20.1,4 19,4M11,11H8.5v0.5H7v-3h1.5V9H11V11z M17,11h-2.5v0.5H13v-3h1.5V9H17V11z"/></svg>`;
     globalThis.LBPlus = globalThis.LBPlus || {};
 
     globalThis.LBPlus.createStreamSection = function (tmdbId, mode = 'no-cache') {
@@ -82,8 +89,8 @@
                     
                     const video = document.createElement('video');
                     video.id = 'lbp-video';
-                    video.controls = true;
-                    video.crossOrigin = 'anonymous'; // Support cross-origin tracks
+                    video.controls = false; // Using custom controls
+                    video.crossOrigin = 'anonymous';
                     video.style.width = '100%';
                     video.style.height = '100%';
                     video.style.position = 'absolute';
@@ -91,9 +98,269 @@
                     video.style.left = '0';
                     playerWrapper.appendChild(video);
 
+                    // --- Custom Controls Construction ---
+                    const controls = document.createElement('div');
+                    controls.className = 'lbp-controls-container';
+                    
+                    // 1. Seek Bar
+                    const seekContainer = document.createElement('div');
+                    seekContainer.className = 'lbp-seek-container';
+                    const seekProgress = document.createElement('div');
+                    seekProgress.className = 'lbp-seek-progress';
+                    const seekHandle = document.createElement('div');
+                    seekHandle.className = 'lbp-seek-handle';
+                    seekContainer.appendChild(seekProgress);
+                    seekContainer.appendChild(seekHandle);
+                    controls.appendChild(seekContainer);
+
+                    // 2. Buttons Row
+                    const row = document.createElement('div');
+                    row.className = 'lbp-controls-row';
+
+                    // Left controls
+                    const leftSide = document.createElement('div');
+                    leftSide.className = 'lbp-controls-left';
+                    
+                    const playBtn = document.createElement('button');
+                    playBtn.className = 'lbp-control-btn';
+                    playBtn.innerHTML = PLAY_SVG;
+                    
+                    const timeDisp = document.createElement('div');
+                    timeDisp.className = 'lbp-time-display';
+                    timeDisp.textContent = '0:00 / 0:00';
+
+                    leftSide.appendChild(playBtn);
+                    leftSide.appendChild(timeDisp);
+
+                    const statsDisp = document.createElement('div');
+                    statsDisp.className = 'lbp-time-display';
+                    statsDisp.style.marginLeft = '12px';
+                    statsDisp.style.opacity = '0.6';
+                    statsDisp.style.fontSize = '12px';
+                    statsDisp.innerHTML = `Speed: <span id="lbp-cache-speed">0 KB/s</span> | Cached: <span id="lbp-cache-percent">0%</span>`;
+                    leftSide.appendChild(statsDisp);
+
+                    // Right controls
+                    const rightSide = document.createElement('div');
+                    rightSide.className = 'lbp-controls-right';
+
+                    const volContainer = document.createElement('div');
+                    volContainer.className = 'lbp-volume-container';
+                    const volBtn = document.createElement('button');
+                    volBtn.className = 'lbp-control-btn';
+                    volBtn.innerHTML = VOL_SVG;
+                    
+                    const volSliderWrapper = document.createElement('div');
+                    volSliderWrapper.className = 'lbp-volume-slider-wrapper';
+                    const volSlider = document.createElement('input');
+                    volSlider.type = 'range';
+                    volSlider.className = 'lbp-volume-slider';
+                    volSlider.min = 0;
+                    volSlider.max = 1;
+                    volSlider.step = 0.05;
+                    volSlider.value = video.volume;
+                    volSliderWrapper.appendChild(volSlider);
+                    volContainer.appendChild(volSliderWrapper);
+                    volContainer.appendChild(volBtn);
+
+                    const ccBtn = document.createElement('button');
+                    ccBtn.className = 'lbp-control-btn';
+                    ccBtn.innerHTML = CC_SVG;
+                    ccBtn.title = 'Subtitles';
+
+                    const fullBtn = document.createElement('button');
+                    fullBtn.className = 'lbp-control-btn';
+                    fullBtn.innerHTML = FULL_SVG;
+
+                    rightSide.appendChild(ccBtn);
+                    rightSide.appendChild(volContainer);
+                    rightSide.appendChild(fullBtn);
+
+                    row.appendChild(leftSide);
+                    row.appendChild(rightSide);
+                    controls.appendChild(row);
+
+                    const subMenu = document.createElement('div');
+                    subMenu.className = 'lbp-sub-menu';
+                    playerWrapper.appendChild(subMenu);
+                    playerWrapper.appendChild(controls);
+
+                    const uploadInput = document.createElement('input');
+                    uploadInput.type = 'file';
+                    uploadInput.accept = '.vtt,.srt';
+                    uploadInput.style.display = 'none';
+                    streamSection.appendChild(uploadInput);
+
+                    // --- Logic ---
+                    const formatTime = (s) => {
+                        const m = Math.floor(s / 60);
+                        const sec = Math.floor(s % 60);
+                        return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+                    };
+
+                    const updateUI = () => {
+                        playBtn.innerHTML = video.paused ? PLAY_SVG : PAUSE_SVG;
+                        const p = (video.currentTime / video.duration) * 100 || 0;
+                        seekProgress.style.width = p + '%';
+                        seekHandle.style.left = p + '%';
+                        timeDisp.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration || 0)}`;
+                    };
+
+                    playBtn.onclick = () => video.paused ? video.play() : video.pause();
+                    video.onplay = updateUI;
+                    video.onpause = updateUI;
+                    video.ontimeupdate = updateUI;
+                    video.onloadedmetadata = updateUI;
+
+                    seekContainer.onclick = (e) => {
+                        const rect = seekContainer.getBoundingClientRect();
+                        const pos = (e.clientX - rect.left) / rect.width;
+                        video.currentTime = pos * video.duration;
+                    };
+
+                    volSlider.oninput = () => {
+                        video.volume = volSlider.value;
+                        video.muted = false;
+                    };
+
+                    volBtn.onclick = () => {
+                        video.muted = !video.muted;
+                    };
+
+                    video.onvolumechange = () => {
+                        volBtn.innerHTML = (video.muted || video.volume === 0) ? MUTE_SVG : VOL_SVG;
+                    };
+
+                    fullBtn.onclick = () => {
+                        if (!document.fullscreenElement) {
+                            // Using timeout to safely enter fullscreen (fixes some browser 'pause' bugs)
+                            setTimeout(() => {
+                                playerWrapper.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
+                            }, 50);
+                        } else {
+                            document.exitFullscreen().catch(err => console.error("Exit fullscreen error:", err));
+                        }
+                    };
+
+                    let hideTimeout;
+                    const showControls = () => {
+                        controls.classList.add('active');
+                        playerWrapper.style.cursor = 'default';
+                        clearTimeout(hideTimeout);
+                        hideTimeout = setTimeout(() => {
+                            if (!video.paused && !subMenu.classList.contains('visible')) {
+                                controls.classList.remove('active');
+                                playerWrapper.style.cursor = 'none';
+                            }
+                        }, 3000);
+                    };
+
+                    playerWrapper.addEventListener('mousemove', showControls);
+                    playerWrapper.addEventListener('click', showControls);
+                    document.addEventListener('mousemove', () => {
+                        if (document.fullscreenElement) showControls();
+                    });
+
+                    document.addEventListener('fullscreenchange', () => {
+                        fullBtn.innerHTML = document.fullscreenElement ? MIN_SVG : FULL_SVG;
+                        if (!document.fullscreenElement) {
+                           playerWrapper.style.cursor = 'default';
+                        }
+                    });
+
+                    // Handle clicks on player to play/pause
+                    video.onclick = (e) => {
+                        if (subMenu.classList.contains('visible')) {
+                            subMenu.classList.remove('visible');
+                            return;
+                        }
+                        video.paused ? video.play() : video.pause();
+                    };
+
+                    // Keyboard Shortcuts
+                    window.addEventListener('keydown', (e) => {
+                        if (!document.fullscreenElement && !playerWrapper.contains(document.activeElement)) return;
+                        
+                        if (e.code === 'Space') {
+                            e.preventDefault();
+                            video.paused ? video.play() : video.pause();
+                        } else if (e.code === 'KeyF') {
+                            e.preventDefault();
+                            fullBtn.click();
+                        }
+                    });
+
+                    ccBtn.onclick = (e) => {
+                        console.log('CC Button Clicked');
+                        e.stopPropagation();
+                        subMenu.classList.toggle('visible');
+                        if (subMenu.classList.contains('visible')) {
+                            controls.classList.add('active');
+                        }
+                    };
+
+                    subMenu.onclick = (e) => {
+                        e.stopPropagation();
+                    };
+
+                    document.addEventListener('click', () => {
+                        subMenu.classList.remove('visible');
+                        controls.classList.remove('active');
+                    });
+
+                    // Subtitle menu logic (reuse existing logic but adapt to new menu position)
+                    const updateMenu = () => {
+                        subMenu.innerHTML = '<div class="lbp-sub-header">Subtitles</div>';
+                        
+                        const offItem = document.createElement('div');
+                        offItem.className = 'lbp-sub-item';
+                        offItem.textContent = 'Off';
+                        if (Array.from(video.textTracks).every(t => t.mode !== 'showing')) offItem.classList.add('active');
+                        offItem.onclick = () => {
+                            Array.from(video.textTracks).forEach(t => t.mode = 'disabled');
+                            updateMenu();
+                        };
+                        subMenu.appendChild(offItem);
+
+                        Array.from(video.textTracks).forEach(track => {
+                            const item = document.createElement('div');
+                            item.className = 'lbp-sub-item';
+                            if (track.mode === 'showing') item.classList.add('active');
+                            item.textContent = track.label;
+                            item.onclick = () => {
+                                Array.from(video.textTracks).forEach(t => t.mode = 'disabled');
+                                track.mode = 'showing';
+                                updateMenu();
+                            };
+                            subMenu.appendChild(item);
+                        });
+
+                        const uploadBtn = document.createElement('div');
+                        uploadBtn.className = 'lbp-sub-item';
+                        uploadBtn.style.textAlign = 'center';
+                        uploadBtn.style.color = '#f4c84d';
+                        uploadBtn.textContent = '+ Upload Subtitle';
+                        uploadBtn.onclick = () => uploadInput.click();
+                        subMenu.appendChild(uploadBtn);
+                    };
+
+                    uploadInput.onchange = (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const trackEl = document.createElement('track');
+                        trackEl.kind = 'subtitles';
+                        trackEl.label = file.name;
+                        trackEl.src = URL.createObjectURL(file);
+                        video.appendChild(trackEl);
+                        setTimeout(updateMenu, 500);
+                    };
+
+                    // Initial menu and HLS...
+                    updateMenu();
+
                     const hlsUrl = data.streamUrl;
                     if (globalThis.Hls && Hls.isSupported()) {
-                        const hls = new Hls({ debug: true });
+                        const hls = new Hls({ debug: false });
                         hls.loadSource(hlsUrl);
                         hls.attachMedia(video);
                         hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
@@ -102,95 +369,25 @@
                         video.play().catch(() => {});
                     }
 
-                    // Add Stats Header
-                    const statsHeader = document.createElement('div');
-                    statsHeader.className = 'lbp-stats-header';
-                    statsHeader.innerHTML = `
-                        <div class="lbp-stat-item">Speed: <span id="lbp-cache-speed">0 KB/s</span></div>
-                        <div class="lbp-stat-item">Cached: <span id="lbp-cache-percent">0%</span></div>
-                    `;
-                    streamSection.insertBefore(statsHeader, playerWrapper);
-
-                    // Add Subtitle Footer
-                    const controlsFooter = document.createElement('div');
-                    controlsFooter.className = 'lbp-controls-footer';
-                    const subBtn = document.createElement('button');
-                    subBtn.textContent = 'Subtitles';
-                    subBtn.className = 'server-btn';
-                    const subMenu = document.createElement('div');
-                    subMenu.className = 'lbp-sub-menu';
-                    subMenu.style.display = 'none';
-
-                    const uploadInput = document.createElement('input');
-                    uploadInput.type = 'file';
-                    uploadInput.accept = '.vtt,.srt';
-                    uploadInput.style.display = 'none';
-                    streamSection.appendChild(uploadInput);
-
-                    const uploadBtn = document.createElement('div');
-                    uploadBtn.className = 'lbp-sub-item';
-                    uploadBtn.textContent = '+ Upload Subtitle';
-                    uploadBtn.onclick = () => uploadInput.click();
-                    subMenu.appendChild(uploadBtn);
-
-                    subBtn.onclick = () => { subMenu.style.display = subMenu.style.display === 'none' ? 'block' : 'none'; };
-                    const subContainer = document.createElement('div');
-                    subContainer.style.position = 'relative';
-                    subContainer.appendChild(subBtn);
-                    subContainer.appendChild(subMenu);
-                    controlsFooter.appendChild(subContainer);
-                    streamSection.appendChild(controlsFooter);
-
-                    // Manual Upload logic
-                    uploadInput.onchange = (e) => {
-                        const file = e.target.files[0];
-                        if (!file) return;
-                        const track = document.createElement('track');
-                        track.kind = 'subtitles';
-                        track.label = file.name;
-                        track.srclang = 'en';
-                        track.src = URL.createObjectURL(file);
-                        track.default = true;
-                        video.appendChild(track);
-                        subMenu.style.display = 'none';
-                        
-                        const item = document.createElement('div');
-                        item.className = 'lbp-sub-item';
-                        item.textContent = file.name;
-                        item.onclick = () => {
-                            Array.from(video.textTracks).forEach(t => t.mode = 'disabled');
-                            track.track.mode = 'showing';
-                            subMenu.style.display = 'none';
-                            subMenu.querySelectorAll('.lbp-sub-item').forEach(i => i.classList.remove('active'));
-                            item.classList.add('active');
-                        };
-                        subMenu.insertBefore(item, uploadBtn);
-                    };
-
-                    // Re-fetch cached subtitles (including the one just synced)
                     fetch(`http://localhost:6769/subtitle/${tmdbId}`)
                         .then(r => r.json())
                         .then(cachedSubs => {
-                            cachedSubs.forEach(sub => {
-                                if (Array.from(subMenu.querySelectorAll('.lbp-sub-item')).some(item => item.textContent === sub.label)) return;
-                                const item = document.createElement('div');
-                                item.className = 'lbp-sub-item';
-                                item.textContent = sub.label;
-                                const track = document.createElement('track');
-                                track.kind = 'subtitles';
-                                track.label = sub.label;
-                                track.src = sub.url;
-                                track.srclang = 'en';
-                                video.appendChild(track);
-                                item.onclick = () => {
-                                    Array.from(video.textTracks).forEach(t => t.mode = 'disabled');
-                                    track.track.mode = 'showing';
-                                    subMenu.style.display = 'none';
-                                    subMenu.querySelectorAll('.lbp-sub-item').forEach(i => i.classList.remove('active'));
-                                    item.classList.add('active');
-                                };
-                                subMenu.insertBefore(item, uploadBtn);
+                            cachedSubs.forEach((sub, idx) => {
+                                if (Array.from(video.textTracks).some(t => t.label === sub.label)) return;
+                                const trackEl = document.createElement('track');
+                                trackEl.kind = 'subtitles';
+                                trackEl.label = sub.label;
+                                trackEl.src = sub.url;
+                                if (idx === 0) trackEl.default = true;
+                                video.appendChild(trackEl);
                             });
+                            // Auto-enable first track if none active
+                            setTimeout(() => {
+                                if (video.textTracks.length > 0 && Array.from(video.textTracks).every(t => t.mode !== 'showing')) {
+                                    video.textTracks[0].mode = 'showing';
+                                }
+                                updateMenu();
+                            }, 1000);
                         });
 
                     // Start progress polling
@@ -287,56 +484,6 @@
                 });
             });
         }
-
-        // This general subtitle detection listener should now only handle cases not covered by the automated capture,
-        // or be removed if the automated capture handles all subtitle needs for 'cache' mode.
-        // Given the new 'cache' mode logic, this listener is redundant for 'cache' mode's initial subtitle detection.
-        // It might still be useful for 'no-cache' mode if subtitles are detected there.
-        // For now, let's keep it as is, but it will only trigger if the 'lbp-sub-menu' and 'lbp-video' exist,
-        // which they will only after the player is initialized in 'cache' mode.
-        // The new 'cache' mode logic already handles adding detected subtitles to the UI.
-        // This listener will effectively only add subtitles if they are detected *after* the player is loaded
-        // and not through the initial capture iframe.
-        chrome.runtime.onMessage.addListener((message) => {
-            if (!message || message.type !== 'LETTERBOXD_PLUS_SUBTITLE_DETECTED') return;
-
-            const subMenu = document.querySelector('.lbp-sub-menu');
-            const video = document.getElementById('lbp-video');
-            const uploadBtn = document.querySelector('.lbp-sub-item:last-child'); // The upload button
-
-            if (subMenu && video && uploadBtn) {
-                // 1. Tell Server to cache it
-                fetch('http://localhost:6769/subtitle', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tmdbId, subtitle_link: message.url })
-                }).catch(() => {});
-
-                // 2. Add to UI (using original URL for now, or wait for server back - let's use original for immediate feedback)
-                if (Array.from(subMenu.querySelectorAll('.lbp-sub-item')).some(item => item.textContent === message.label)) return;
-
-                const item = document.createElement('div');
-                item.className = 'lbp-sub-item';
-                item.textContent = message.label;
-                
-                const track = document.createElement('track');
-                track.kind = 'subtitles';
-                track.label = message.label;
-                track.src = message.url;
-                track.srclang = 'en';
-                video.appendChild(track);
-
-                item.onclick = () => {
-                    Array.from(video.textTracks).forEach(t => t.mode = 'disabled');
-                    track.track.mode = 'showing';
-                    subMenu.style.display = 'none';
-                    subMenu.querySelectorAll('.lbp-sub-item').forEach(i => i.classList.remove('active'));
-                    item.classList.add('active');
-                };
-
-                subMenu.insertBefore(item, uploadBtn);
-            }
-        });
 
         streamSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };

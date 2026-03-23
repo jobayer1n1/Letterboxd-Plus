@@ -1,3 +1,7 @@
+// Global error tracking
+self.addEventListener('error', (event) => console.error('SW Error:', event.error));
+self.addEventListener('unhandledrejection', (event) => console.error('SW Unhandled Rejection:', event.reason));
+
 const processedUrls = new Map();
 const CACHE_TIME = 60000; // 1 minute cache
 
@@ -117,7 +121,13 @@ async function checkServerHealth() {
     }
 }
 
-// Initial check and periodic monitoring
+// Initial check and periodic monitoring using MV3 Alarms
 checkServerHealth();
-setInterval(checkServerHealth, 10000); // Every 10 seconds
+
+chrome.alarms.create('serverHealthCheck', { periodInMinutes: 0.5 }); // Every 30 seconds
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'serverHealthCheck') {
+        checkServerHealth();
+    }
+});
 

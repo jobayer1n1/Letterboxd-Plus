@@ -3,7 +3,7 @@
   "name": "Letterboxd+",
   "version": "1.1",
   "description": "Make your letterboxd a streaming platform",
-  "permissions": ["activeTab", "storage", "webRequest"],
+  "permissions": ["activeTab", "storage", "webRequest", "alarms"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "scripts/background.js"

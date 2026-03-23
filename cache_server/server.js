@@ -3,6 +3,8 @@ const fs = require("fs-extra");
 const path = require("path");
 const os = require("os");
 const { Parser } = require("m3u8-parser");
+const { Readable } = require("stream");
+const { pipeline } = require("stream/promises");
 
 // Use native fetch if available, otherwise fall back to node-fetch
 const fetch = global.fetch || (() => {
@@ -73,6 +75,7 @@ app.post("/load", async (req, res) => {
   }
 
   // 1. Handle Subtitle First (Priority)
+  console.log(`[${tmdbId}] Processing Subtitles First...`);
   if (subtitle_link) {
     try {
         const subDir = getSubtitleDir(tmdbId);
@@ -120,6 +123,12 @@ app.post("/load", async (req, res) => {
     for (let seg of meta.segments) {
       const filePath = path.join(dir, seg.file);
       seg.downloaded = await fs.pathExists(filePath);
+    }
+    
+    // Migration: If legacy meta lacks duration, force re-fetch
+    if (meta && meta.segments.length > 0 && typeof meta.segments[0].duration === 'undefined') {
+        console.log(`[${tmdbId}] Legacy meta detected (no durations). Forcing re-parse...`);
+        meta = null;
     }
   }
 
@@ -189,13 +198,14 @@ app.post("/load", async (req, res) => {
           return {
             url: new URL(seg.uri, m3u8Url).href,
             file: `${i}.ts`,
+            duration: seg.duration || 10, // Store actual duration
             downloaded: false
           };
         } catch (e) {
-          // Fallback if URL is totally invalid
           return {
             url: seg.uri,
             file: `${i}.ts`,
+            duration: seg.duration || 10,
             downloaded: false
           };
         }
@@ -237,7 +247,8 @@ app.get("/stream/:tmdbId.m3u8", async (req, res) => {
 
   if (!state) return res.status(404).send("Not loaded");
 
-  let m3u8 = "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXT-X-MEDIA-SEQUENCE:0\n";
+  const targetDuration = Math.ceil(state.meta.segments.reduce((max, s) => Math.max(max, s.duration), 0)) || 10;
+  let m3u8 = `#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:${targetDuration}\n#EXT-X-MEDIA-SEQUENCE:0\n`;
 
   // Proxy Keys
   if (state.meta.keys) {
@@ -247,8 +258,7 @@ app.get("/stream/:tmdbId.m3u8", async (req, res) => {
   }
 
   state.meta.segments.forEach((seg, i) => {
-    m3u8 += `#EXTINF:10,\n`;
-    m3u8 += `/seg/${tmdbId}/${i}.ts\n`;
+    m3u8 += `#EXTINF:${seg.duration.toFixed(3)},\nhttp://localhost:${PORT}/seg/${tmdbId}/${seg.file}\n`;
   });
 
   m3u8 += "#EXT-X-ENDLIST";
@@ -298,6 +308,9 @@ app.get("/seg/:tmdbId/:id.ts", async (req, res) => {
     return fs.createReadStream(filePath).pipe(res);
   }
 
+  // Seek Priority: Jump background worker to this section
+  state.backgroundIndex = parseInt(id);
+
   // Fetch and stream + save
   try {
     const response = await fetch(seg.url, { headers: state.headers });
@@ -305,34 +318,28 @@ app.get("/seg/:tmdbId/:id.ts", async (req, res) => {
         return res.status(response.status).send(`Segment fetch failed: ${response.status}`);
     }
 
+    const nodeStream = response.body.on ? response.body : Readable.fromWeb(response.body);
     const fileStream = fs.createWriteStream(filePath);
     
-    // In-memory buffering for the response we send to client
-    // while simultaneously saving to disk
-    if (response.body.pipe) {
-        response.body.on("data", chunk => { state.totalDownloaded += chunk.length; });
-        response.body.pipe(fileStream);
-        response.body.pipe(res);
-    } else {
-        const reader = response.body.getReader();
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            state.totalDownloaded += value.length;
-            fileStream.write(Buffer.from(value));
-            res.write(Buffer.from(value));
-        }
-        fileStream.end();
-        res.end();
-    }
-
-    response.body.on("end", async () => {
-        seg.downloaded = true;
-        await fs.writeJson(metaPath(tmdbId), state.meta);
-        updateProgress(tmdbId);
+    nodeStream.on("data", (chunk) => {
+        state.totalDownloaded += chunk.length;
     });
+
+    // Pipe to both disk and client
+    nodeStream.pipe(fileStream);
+    nodeStream.pipe(res);
+
+    await new Promise((resolve, reject) => {
+        fileStream.on('finish', resolve);
+        nodeStream.on('error', reject);
+        fileStream.on('error', reject);
+    });
+
+    seg.downloaded = true;
+    await fs.writeJson(metaPath(tmdbId), state.meta);
+    updateProgress(tmdbId);
   } catch(e) {
-    console.error("Pipe error:", e.message);
+    console.error(`[${tmdbId}] Segment pipe error for ${id}:`, e.message);
     if (!res.headersSent) res.status(500).send(e.message);
   }
 });
@@ -344,77 +351,83 @@ async function startBackgroundDownload(tmdbId) {
   if (state.downloading) return;
 
   state.downloading = true;
+  if (state.backgroundIndex === undefined) state.backgroundIndex = 0;
 
-  const MAX_PARALLEL = 5;
-  let index = 0;
+  const MAX_PARALLEL = 3;
 
   async function worker() {
-    while (index < state.meta.segments.length) {
-      const i = index++;
-      const seg = state.meta.segments[i];
+    while (true) {
+      let found = -1;
+      const total = state.meta.totalSegments;
+      
+      for (let i = 0; i < total; i++) {
+        const checkIdx = (state.backgroundIndex + i) % total;
+        if (!state.meta.segments[checkIdx].downloaded) {
+          found = checkIdx;
+          state.backgroundIndex = (checkIdx + 1) % total;
+          break;
+        }
+      }
 
-      if (seg.downloaded) continue;
+      if (found === -1) break;
 
       try {
-        await downloadSegment(tmdbId, i);
+        await downloadSegment(tmdbId, found);
       } catch (e) {
-        console.log("Download error:", e.message);
+        console.error(`[${tmdbId}] Background worker error for segment ${found}:`, e.message);
+        await new Promise(r => setTimeout(r, 2000));
       }
     }
   }
 
-  await Promise.all(Array(MAX_PARALLEL).fill(0).map(worker));
+  // Start workers and wait for all to complete
+  await Promise.all(Array(MAX_PARALLEL).fill(0).map(() => worker()));
+  state.downloading = false;
 }
 
 async function downloadSegment(tmdbId, id) {
   const state = activeStreams[tmdbId];
-  if (!state) return;
   const seg = state.meta.segments[id];
   const filePath = path.join(getVideoDir(tmdbId), seg.file);
 
-  if (await fs.pathExists(filePath)) {
-    seg.downloaded = true;
-    return;
-  }
-
-  try {
-    const res = await fetch(seg.url, { headers: state.headers });
-    if (!res.ok) {
-        const errBody = await res.text().catch(() => "N/A");
-        console.error(`[${tmdbId}] Failed segment ${id}: ${res.status} - ${errBody.slice(0, 200)}`);
-        console.error(`  URL: ${seg.url}`);
-        throw new Error(`HTTP ${res.status}`);
-    }
-
-    const fileStream = fs.createWriteStream(filePath);
-
-    if (res.body.on) {
-      // Node.js Stream
-      await new Promise((resolve, reject) => {
-        res.body.on("data", chunk => {
-          state.totalDownloaded += chunk.length;
-        });
-        res.body.on("end", resolve);
-        res.body.on("error", reject);
-        res.body.pipe(fileStream);
-      });
-    } else {
-      // Web Stream (native fetch)
-      const reader = res.body.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        state.totalDownloaded += value.length;
-        fileStream.write(Buffer.from(value));
+  const MAX_RETRIES = 3;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      if (await fs.pathExists(filePath)) {
+        seg.downloaded = true;
+        return;
       }
-      fileStream.end();
-    }
 
-    seg.downloaded = true;
-    await fs.writeJson(metaPath(tmdbId), state.meta);
-    updateProgress(tmdbId);
-  } catch (e) {
-    console.error(`[${tmdbId}] Failed to download segment ${id}:`, e.message);
+      const res = await fetch(seg.url, { headers: state.headers });
+      if (!res.ok) {
+          const errBody = await res.text().catch(() => "N/A");
+          throw new Error(`HTTP ${res.status}: ${errBody.slice(0, 100)}`);
+      }
+
+      const nodeStream = res.body.on ? res.body : Readable.fromWeb(res.body);
+      const fileStream = fs.createWriteStream(filePath);
+
+      nodeStream.on("data", (chunk) => {
+          state.totalDownloaded += chunk.length;
+      });
+
+      nodeStream.pipe(fileStream);
+
+      await new Promise((resolve, reject) => {
+          fileStream.on('finish', resolve);
+          nodeStream.on('error', reject);
+          fileStream.on('error', reject);
+      });
+
+      seg.downloaded = true;
+      await fs.writeJson(metaPath(tmdbId), state.meta);
+      updateProgress(tmdbId);
+      return;
+    } catch (e) {
+      console.error(`[${tmdbId}] Background attempt ${attempt} failed for segment ${id}:`, e.message);
+      if (attempt === MAX_RETRIES) throw e;
+      await new Promise(r => setTimeout(r, 1000 * attempt));
+    }
   }
 }
 
@@ -461,10 +474,6 @@ app.get("/progress/:tmdbId", async (req, res) => {
 
   res.json(await fs.readJson(file));
 });
-
-function getSubtitleDir(tmdbId) {
-  return path.join(getVideoDir(tmdbId), "subtitles");
-}
 
 // ----------- SUBTITLES -----------
 
