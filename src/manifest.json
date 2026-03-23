@@ -3,14 +3,24 @@
   "name": "Letterboxd+",
   "version": "1.1",
   "description": "Make your letterboxd a streaming platform",
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "storage", "webRequest"],
   "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "scripts/background.js"
+  },
   "content_scripts": [
     {
       "matches": [
         "*://*.letterboxd.com/film/*"
       ],
-      "js": ["scripts/server-defaults.js", "scripts/content.js"],
+      "js": [
+        "scripts/server-defaults.js",
+        "scripts/vendor/hls.min.js",
+        "scripts/utils.js",
+        "scripts/stream-manager.js",
+        "scripts/ui-components.js",
+        "scripts/content.js"
+      ],
       "css": ["styles/content.css"],
       "run_at": "document_idle"
     }

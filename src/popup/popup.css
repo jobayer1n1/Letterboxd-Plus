@@ -34,10 +34,29 @@ h1 {
   letter-spacing: 0.2px;
 }
 
+.version-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .app-version {
   margin: 0;
   color: #9ca3af;
   font-size: 11px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #4b5563; /* Grey by default */
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.status-dot.online {
+  background-color: #10b981; /* Green */
+  box-shadow: 0 0 6px #10b981;
 }
 
 .toggle-wrap {

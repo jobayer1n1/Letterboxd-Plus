@@ -15,9 +15,11 @@ const saveServerBtn = document.getElementById("saveServerBtn");
 const serverFeedbackEl = document.getElementById("serverFeedback");
 const serverListEl = document.getElementById("serverList");
 const manualBtn = document.getElementById("manualBtn");
+const cacheStatusEl = document.getElementById("cacheStatus");
 
 
 const manualUrl = "https://github.com/jobayer1n1/Letterboxd-Plus/blob/main/src/add_server.md";
+const cacheServerUrl = "http://localhost:6769/progress/ping";
 const releaseApiUrl = "https://api.github.com/repos/jobayer1n1/Letterboxd-Plus/releases/latest";
 const STORAGE_ENABLED_KEY = "scriptsEnabled";
 const STORAGE_SERVERS_KEY = "serverTemplates";
@@ -241,6 +243,26 @@ function saveServer() {
     });
   });
 }
+
+function updateStatusUI(online) {
+  if (online) {
+    cacheStatusEl.classList.add("online");
+    cacheStatusEl.title = "Cache Server: Online";
+  } else {
+    cacheStatusEl.classList.remove("online");
+    cacheStatusEl.title = "Cache Server: Offline";
+  }
+}
+
+chrome.storage.local.get({ cacheServerOnline: false }, (result) => {
+  updateStatusUI(result.cacheServerOnline);
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.cacheServerOnline) {
+    updateStatusUI(changes.cacheServerOnline.newValue);
+  }
+});
 
 chrome.storage.local.get({ [STORAGE_ENABLED_KEY]: true }, (result) => {
   const enabled = Boolean(result[STORAGE_ENABLED_KEY]);
