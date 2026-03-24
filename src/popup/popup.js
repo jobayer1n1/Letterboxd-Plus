@@ -15,11 +15,8 @@ const saveServerBtn = document.getElementById("saveServerBtn");
 const serverFeedbackEl = document.getElementById("serverFeedback");
 const serverListEl = document.getElementById("serverList");
 const manualBtn = document.getElementById("manualBtn");
-const cacheStatusEl = document.getElementById("cacheStatus");
-
-
 const manualUrl = "https://github.com/jobayer1n1/Letterboxd-Plus/blob/main/src/add_server.md";
-const cacheServerUrl = "http://localhost:6769/progress/ping";
+const cacheServerUrl = "http://localhost:6769/status";
 const releaseApiUrl = "https://api.github.com/repos/jobayer1n1/Letterboxd-Plus/releases/latest";
 const STORAGE_ENABLED_KEY = "scriptsEnabled";
 const STORAGE_SERVERS_KEY = "serverTemplates";
@@ -244,26 +241,6 @@ function saveServer() {
   });
 }
 
-function updateStatusUI(online) {
-  if (online) {
-    cacheStatusEl.classList.add("online");
-    cacheStatusEl.title = "Cache Server: Online";
-  } else {
-    cacheStatusEl.classList.remove("online");
-    cacheStatusEl.title = "Cache Server: Offline";
-  }
-}
-
-chrome.storage.local.get({ cacheServerOnline: false }, (result) => {
-  updateStatusUI(result.cacheServerOnline);
-});
-
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes.cacheServerOnline) {
-    updateStatusUI(changes.cacheServerOnline.newValue);
-  }
-});
-
 chrome.storage.local.get({ [STORAGE_ENABLED_KEY]: true }, (result) => {
   const enabled = Boolean(result[STORAGE_ENABLED_KEY]);
   scriptToggleEl.checked = enabled;
@@ -368,3 +345,259 @@ latestReleaseBtn.addEventListener("click", () => {
   if (!latestReleasePageUrl) return;
   chrome.tabs.create({ url: latestReleasePageUrl });
 });
+
+// Cache Servers Logic
+const cacheServersToggleBtn = document.getElementById("cacheServersToggleBtn");
+const cacheServersBody = document.getElementById("cacheServersBody");
+const addCacheServerBtn = document.getElementById("addCacheServerBtn");
+const manualCacheBtn = document.getElementById("manualCacheBtn");
+const addCacheServerForm = document.getElementById("addCacheServerForm");
+const cacheServerLink = document.getElementById("cacheServerLink");
+const checkCacheConnectionBtn = document.getElementById("checkCacheConnectionBtn");
+const saveCacheServerBtn = document.getElementById("saveCacheServerBtn");
+const cacheServerFeedback = document.getElementById("cacheServerFeedback");
+const cacheServerList = document.getElementById("cacheServerList");
+
+const cacheFoldersSection = document.getElementById("cacheFoldersSection");
+const cacheFoldersList = document.getElementById("cacheFoldersList");
+const clearAllCacheBtn = document.getElementById("clearAllCacheBtn");
+const cacheFoldersToggleBtn = document.getElementById("cacheFoldersToggleBtn");
+const cacheFoldersBody = document.getElementById("cacheFoldersBody");
+
+const STORAGE_CACHE_SERVERS = "cacheServers";
+const STORAGE_SELECTED_CACHE = "selectedCacheServer";
+const defaultCacheServer = "http://localhost:6769";
+
+function getCacheServers(cb) {
+  chrome.storage.local.get({ [STORAGE_CACHE_SERVERS]: [defaultCacheServer], [STORAGE_SELECTED_CACHE]: defaultCacheServer }, (res) => {
+    let servers = res[STORAGE_CACHE_SERVERS];
+    if (!servers.includes(defaultCacheServer)) {
+      servers.unshift(defaultCacheServer);
+      chrome.storage.local.set({ [STORAGE_CACHE_SERVERS]: servers });
+    }
+    cb(servers, res[STORAGE_SELECTED_CACHE]);
+  });
+}
+
+function normalizeUrl(url) {
+  return url.trim().replace(/\/$/, "");
+}
+
+function setCacheFeedback(msg, ok, color) {
+  cacheServerFeedback.textContent = msg;
+  cacheServerFeedback.style.color = color || (ok ? "#66d08a" : "#ff7f7f");
+}
+
+async function renderCacheFolders(serverUrl) {
+  try {
+    const res = await fetch(`${serverUrl}/cache`);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    cacheFoldersSection.classList.remove("hidden");
+    cacheFoldersList.innerHTML = "";
+    
+    try {
+       const sizeRes = await fetch(`${serverUrl}/cache/size`);
+       if (sizeRes.ok) {
+           const sizeData = await sizeRes.json();
+           const sizeEl = document.getElementById("totalCacheSize");
+           if (sizeEl) sizeEl.textContent = `${sizeData.formatted}`;
+       }
+    } catch (e) {
+       const sizeEl = document.getElementById("totalCacheSize");
+       if (sizeEl) sizeEl.textContent = "N/A";
+    }
+
+    if (data.length === 0) {
+       cacheFoldersList.innerHTML = "<p style='color:#9eacbf;font-size:11px'>No caches found.</p>";
+    }
+    data.forEach(c => {
+       const row = document.createElement("div");
+       row.className = "server-item custom";
+       row.style.marginBottom = "5px";
+       row.innerHTML = `
+         <div class="server-row" style="align-items:center;">
+           <div style="flex:1;">
+             <p class="server-name" style="margin:0;">TMDB: ${c.tmdbId}</p>
+             <p class="server-link" style="margin:0; margin-top:3px;">${c.percent}% Cached (${c.sizeFormatted})</p>
+           </div>
+           <button class="server-delete delete-folder-btn" style="padding:4px 8px" data-tmdb="${c.tmdbId}">Delete</button>
+         </div>
+       `;
+       row.querySelector('.delete-folder-btn').onclick = async () => {
+          await fetch(`${serverUrl}/cache/${c.tmdbId}`, { method: 'DELETE' });
+          renderCacheFolders(serverUrl);
+       };
+       cacheFoldersList.appendChild(row);
+    });
+  } catch(e) {
+    cacheFoldersSection.classList.add("hidden");
+  }
+}
+
+async function renderCacheServerList() {
+  getCacheServers((servers, selected) => {
+    chrome.storage.local.get({ cacheServerOnline: false }, (res) => {
+      let isSelectedOnline = res.cacheServerOnline;
+      cacheServerList.innerHTML = "";
+
+    servers.forEach(srv => {
+      const isDefault = srv === defaultCacheServer;
+      const isSelected = srv === selected;
+      const item = document.createElement("div");
+      item.className = `server-item ${isSelected ? "default" : "custom"}`;
+      
+      let statusText = '';
+      if (isSelected) {
+          statusText = isSelectedOnline 
+              ? '<p class="server-link" style="margin:0; margin-top:3px; color:#66d08a;">Active (Online)</p>'
+              : '<p class="server-link" style="margin:0; margin-top:3px; color:#ff7f7f;">Active (Offline)</p>';
+      }
+
+      item.innerHTML = `
+        <div class="server-row" style="align-items:center;">
+          <div style="flex:1;">
+            <p class="server-name" style="margin:0;">${srv}</p>
+            ${statusText}
+          </div>
+        </div>
+      `;
+      
+      const row = item.querySelector('.server-row');
+      
+      if (!isSelected) {
+        const selBtn = document.createElement("button");
+        selBtn.className = "btn secondary";
+        selBtn.textContent = "Select";
+        selBtn.onclick = async () => {
+          selBtn.textContent = "Checking...";
+          try {
+            const controller = new AbortController();
+            const t = setTimeout(()=>controller.abort(), 2000);
+            const res = await fetch(`${srv}/status`, { signal: controller.signal });
+            clearTimeout(t);
+            const data = await res.json();
+            if (data && data.safeword === 6769) {
+               chrome.storage.local.set({ 
+                 [STORAGE_SELECTED_CACHE]: srv,
+                 cacheServerOnline: true
+               }, () => {
+                  chrome.runtime.sendMessage({ type: 'FORCE_HEALTH_CHECK' }).catch(()=>{});
+                  renderCacheServerList();
+                  renderCacheFolders(srv);
+               });
+            } else {
+               alert("Server not online or invalid!");
+               selBtn.textContent = "Select";
+            }
+          } catch(e) {
+            alert("Server not online!");
+            selBtn.textContent = "Select";
+          }
+        };
+        row.appendChild(selBtn);
+      }
+      
+      if (!isDefault && !isSelected) {
+        const delBtn = document.createElement("button");
+        delBtn.className = "server-delete";
+        delBtn.textContent = "Delete";
+        delBtn.style.marginLeft = "4px";
+        delBtn.onclick = () => {
+          const newList = servers.filter(s => s !== srv);
+          let newSelected = selected === srv ? defaultCacheServer : selected;
+          chrome.storage.local.set({ [STORAGE_CACHE_SERVERS]: newList, [STORAGE_SELECTED_CACHE]: newSelected }, () => {
+             renderCacheServerList();
+             if (selected === srv) renderCacheFolders(newSelected);
+          });
+        };
+        row.appendChild(delBtn);
+      }
+      
+      cacheServerList.appendChild(item);
+    });
+    
+    // Manage cache folders section visibility dynamically
+    if (!isSelectedOnline) {
+       cacheFoldersSection.classList.add("hidden");
+    } else {
+       renderCacheFolders(selected);
+    }
+  });
+  });
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && (changes.cacheServerOnline || changes.selectedCacheServer)) {
+    renderCacheServerList();
+  }
+});
+
+checkCacheConnectionBtn.onclick = async () => {
+  const url = normalizeUrl(cacheServerLink.value);
+  if (!url.startsWith("http")) return setCacheFeedback("Invalid URL", false);
+  setCacheFeedback("Checking...", true, "#9eabbc");
+  try {
+     const res = await fetch(`${url}/status`);
+     const data = await res.json();
+     if (data.safeword === 6769) {
+        setCacheFeedback("Connected!", true);
+        saveCacheServerBtn.disabled = false;
+        saveCacheServerBtn.style.opacity = "1";
+        saveCacheServerBtn.style.cursor = "pointer";
+     } else {
+        setCacheFeedback("Invalid cache server", false);
+     }
+  } catch(e) {
+     setCacheFeedback("Cannot connect", false);
+  }
+};
+
+saveCacheServerBtn.onclick = () => {
+  const url = normalizeUrl(cacheServerLink.value);
+  getCacheServers((servers) => {
+     if (servers.includes(url)) return setCacheFeedback("Already added", false);
+     servers.push(url);
+     chrome.storage.local.set({ [STORAGE_CACHE_SERVERS]: servers }, () => {
+       cacheServerLink.value = "";
+       saveCacheServerBtn.disabled = true;
+       saveCacheServerBtn.style.opacity = "0.5";
+       saveCacheServerBtn.style.cursor = "not-allowed";
+       setCacheFeedback("Added successfully", true);
+       renderCacheServerList();
+     });
+  });
+};
+
+cacheServersToggleBtn.onclick = () => {
+  const hidden = cacheServersBody.classList.toggle("hidden");
+  cacheServersToggleBtn.setAttribute("aria-expanded", String(!hidden));
+  if (!hidden) {
+    getCacheServers((_, selected) => renderCacheFolders(selected));
+  }
+};
+
+addCacheServerBtn.onclick = () => {
+  addCacheServerForm.classList.toggle("hidden");
+  cacheServerFeedback.textContent = "";
+};
+
+manualCacheBtn.onclick = () => chrome.tabs.create({url: manualUrl});
+
+clearAllCacheBtn.onclick = async () => {
+  getCacheServers(async (_, selected) => {
+     if (confirm("Clear all cache folders?")) {
+        await fetch(`${selected}/cache`, { method: 'DELETE' });
+        renderCacheFolders(selected);
+     }
+  });
+};
+
+// --- NEW CACHE FOLDERS TOGGLE LOGIC ---
+cacheFoldersToggleBtn.onclick = () => {
+  const hidden = cacheFoldersBody.classList.toggle("hidden");
+  cacheFoldersToggleBtn.setAttribute("aria-expanded", String(!hidden));
+};
+// --------------------------------------
+
+renderCacheServerList();

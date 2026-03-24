@@ -44,7 +44,36 @@ chrome.webRequest.onBeforeRequest.addListener(
             }
         }
     },
-    { urls: ["<all_urls>"], types: ["xmlhttprequest", "other"] }
+    { urls: ["<all_urls>"] }
+);
+
+// Fallback: Aggressively intercept headers to discover stealth subtitles that don't end in .vtt/.srt
+chrome.webRequest.onHeadersReceived.addListener(
+    async (details) => {
+        if (details.method === 'OPTIONS') return;
+        const cTypeHeader = (details.responseHeaders || []).find(h => h.name.toLowerCase() === 'content-type');
+        if (!cTypeHeader) return;
+        
+        const cType = cTypeHeader.value.toLowerCase();
+        if (cType.includes('text/vtt') || cType.includes('text/srt') || cType.includes('application/x-subrip')) {
+            const url = details.url;
+            
+            // If it already had a .vtt/.srt extension, onBeforeRequest probably caught it.
+            // But just in case, we will notify here if not historically cached.
+            const now = Date.now();
+            if (processedUrls.has(url) && (now - processedUrls.get(url)) < CACHE_TIME) {
+                return;
+            }
+            processedUrls.set(url, now);
+            
+            const realTabId = await getTabId(details.tabId);
+            if (realTabId === undefined) return;
+            
+            notifySubtitle(realTabId, url, "Detected Subtitle");
+        }
+    },
+    { urls: ["<all_urls>"] },
+    ["responseHeaders"]
 );
 
 async function analyzePlaylist(url, tabId) {
@@ -104,21 +133,29 @@ function notifySubtitle(tabId, url, label) {
     }).catch(() => {});
 }
 
-const CACHE_SERVER_URL = "http://localhost:6769/progress/ping";
-
 async function checkServerHealth() {
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
-        await fetch(CACHE_SERVER_URL, { 
-            mode: 'no-cors',
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        chrome.storage.local.set({ cacheServerOnline: true });
-    } catch (e) {
-        chrome.storage.local.set({ cacheServerOnline: false });
-    }
+    chrome.storage.local.get({ selectedCacheServer: 'http://localhost:6769' }, async (resStorage) => {
+        try {
+            const url = `${resStorage.selectedCacheServer.replace(/\/$/, '')}/status`;
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2000);
+            const res = await fetch(url, { 
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.safeword === 6769) {
+                    chrome.storage.local.set({ cacheServerOnline: true });
+                    return;
+                }
+            }
+            chrome.storage.local.set({ cacheServerOnline: false });
+        } catch (e) {
+            chrome.storage.local.set({ cacheServerOnline: false });
+        }
+    });
 }
 
 // Initial check and periodic monitoring using MV3 Alarms
@@ -127,6 +164,14 @@ checkServerHealth();
 chrome.alarms.create('serverHealthCheck', { periodInMinutes: 0.5 }); // Every 30 seconds
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'serverHealthCheck') {
+        checkServerHealth();
+    }
+});
+
+setInterval(checkServerHealth, 5000);
+
+chrome.runtime.onMessage.addListener((message) => {
+    if (message && message.type === 'FORCE_HEALTH_CHECK') {
         checkServerHealth();
     }
 });

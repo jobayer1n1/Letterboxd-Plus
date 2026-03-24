@@ -74,6 +74,11 @@
             init();
         }
         setTimeout(init, 1000);
+        
+        setInterval(() => {
+            chrome.runtime.sendMessage({ type: 'FORCE_HEALTH_CHECK' }).catch(()=>{});
+        }, 5000);
+        chrome.runtime.sendMessage({ type: 'FORCE_HEALTH_CHECK' }).catch(()=>{});
     }
 
     chrome.storage.local.get({ [STORAGE_KEY]: true }, (result) => {

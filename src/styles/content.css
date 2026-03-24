@@ -410,4 +410,10 @@
     font-weight: 500;
 }
 
-
+/* Elevate subtitles so they aren't hidden by custom bottom controls */
+#lbp-video::-webkit-media-text-track-container {
+    transform: translateY(-50px) !important;
+}
+#lbp-video::cue {
+    transform: translateY(-50px);
+}

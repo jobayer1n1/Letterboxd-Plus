@@ -37,8 +37,10 @@
             streamSection.appendChild(playerWrapper);
         } else {
             // ----- Automated Capture Phase -----
+            chrome.storage.local.get({ selectedCacheServer: 'http://localhost:6769' }, (storageRes) => {
+                const C_SERVER = storageRes.selectedCacheServer.replace(/\/$/, "");
             
-            // 1. Loading UI
+                // 1. Loading UI
             const loadingOverlay = document.createElement('div');
             loadingOverlay.className = 'lbp-loading-overlay';
             loadingOverlay.innerHTML = `
@@ -76,7 +78,7 @@
                     }
                 };
                 
-                fetch('http://localhost:6769/load', {
+                fetch(`${C_SERVER}/load`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(loadPayload)
@@ -182,7 +184,7 @@
 
                     const subMenu = document.createElement('div');
                     subMenu.className = 'lbp-sub-menu';
-                    playerWrapper.appendChild(subMenu);
+                    controls.appendChild(subMenu);
                     playerWrapper.appendChild(controls);
 
                     const uploadInput = document.createElement('input');
@@ -193,8 +195,13 @@
 
                     // --- Logic ---
                     const formatTime = (s) => {
-                        const m = Math.floor(s / 60);
+                        if (!s || isNaN(s)) return '0:00';
+                        const h = Math.floor(s / 3600);
+                        const m = Math.floor((s % 3600) / 60);
                         const sec = Math.floor(s % 60);
+                        if (h > 0) {
+                            return `${h}:${m < 10 ? '0' : ''}${m}:${sec < 10 ? '0' : ''}${sec}`;
+                        }
                         return `${m}:${sec < 10 ? '0' : ''}${sec}`;
                     };
 
@@ -244,13 +251,20 @@
 
                     let hideTimeout;
                     const showControls = () => {
+                        controls.style.removeProperty('opacity');
+                        controls.style.removeProperty('pointer-events');
                         controls.classList.add('active');
                         playerWrapper.style.cursor = 'default';
                         clearTimeout(hideTimeout);
                         hideTimeout = setTimeout(() => {
-                            if (!video.paused && !subMenu.classList.contains('visible')) {
+                            const isFullscreen = !!document.fullscreenElement;
+                            if ((!video.paused || isFullscreen) && !subMenu.classList.contains('visible')) {
                                 controls.classList.remove('active');
                                 playerWrapper.style.cursor = 'none';
+                                if (isFullscreen) {
+                                    controls.style.setProperty('opacity', '0', 'important');
+                                    controls.style.setProperty('pointer-events', 'none', 'important');
+                                }
                             }
                         }, 3000);
                     };
@@ -358,6 +372,13 @@
                     // Initial menu and HLS...
                     updateMenu();
 
+                    video.addEventListener('subtitle-added', () => {
+                        if (video.textTracks.length > 0 && Array.from(video.textTracks).every(t => t.mode !== 'showing')) {
+                            video.textTracks[0].mode = 'showing';
+                        }
+                        updateMenu();
+                    });
+
                     const hlsUrl = data.streamUrl;
                     if (globalThis.Hls && Hls.isSupported()) {
                         const hls = new Hls({ debug: false });
@@ -369,7 +390,7 @@
                         video.play().catch(() => {});
                     }
 
-                    fetch(`http://localhost:6769/subtitle/${tmdbId}`)
+                    fetch(`${C_SERVER}/subtitle/${tmdbId}`)
                         .then(r => r.json())
                         .then(cachedSubs => {
                             cachedSubs.forEach((sub, idx) => {
@@ -393,10 +414,16 @@
                     // Start progress polling
                     const pollInterval = setInterval(() => {
                         if (!document.getElementById('lbp-video')) { clearInterval(pollInterval); return; }
-                        fetch(`http://localhost:6769/progress/${tmdbId}`).then(r => r.json()).then(data => {
+                        fetch(`${C_SERVER}/progress/${tmdbId}`).then(r => r.json()).then(data => {
                             const speedEl = document.getElementById('lbp-cache-speed');
                             const percentEl = document.getElementById('lbp-cache-percent');
-                            if (speedEl) speedEl.textContent = data.speed || '0 KB/s';
+                            if (speedEl) {
+                                if (data.percent == 100) {
+                                    speedEl.textContent = '0.00 KB/s';
+                                } else {
+                                    speedEl.textContent = data.speed || '0 KB/s';
+                                }
+                            }
                             if (percentEl) percentEl.textContent = (data.percent || 0) + '%';
                         }).catch(() => {});
                     }, 1000);
@@ -404,6 +431,7 @@
             };
 
             // Capture Listeners
+            let syncTimer = null;
             const onCaptureMessage = (message) => {
                 if (!message) return;
                 if (message.type === 'LETTERBOXD_PLUS_M3U8_DETECTED') {
@@ -413,12 +441,40 @@
                     }
                 }
                 if (message.type === 'LETTERBOXD_PLUS_SUBTITLE_DETECTED') {
+                    const firstSub = !capturedSub;
                     capturedSub = message.url;
+                    
+                    if (syncStarted && firstSub) {
+                        fetch(`${C_SERVER}/subtitle`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ tmdbId, subtitle_link: capturedSub })
+                        }).then(() => fetch(`${C_SERVER}/subtitle/${tmdbId}`))
+                          .then(r => r.json())
+                          .then(cachedSubs => {
+                               const video = document.getElementById('lbp-video');
+                               if (video) {
+                                   cachedSubs.forEach((sub, idx) => {
+                                       if (Array.from(video.textTracks).some(t => t.label === sub.label)) return;
+                                       const trackEl = document.createElement('track');
+                                       trackEl.kind = 'subtitles';
+                                       trackEl.label = sub.label;
+                                       trackEl.src = sub.url;
+                                       video.appendChild(trackEl);
+                                   });
+                                   video.dispatchEvent(new Event('subtitle-added'));
+                               }
+                          }).catch(() => {});
+                    }
                 }
 
                 if (capturedM3u8) {
-                    // Wait a bit to see if subtitles show up, then sync
-                    setTimeout(startBackendSync, 2000);
+                    if (capturedSub && !syncStarted) {
+                        if (syncTimer) clearTimeout(syncTimer);
+                        startBackendSync();
+                    } else if (!syncStarted && !syncTimer) {
+                        syncTimer = setTimeout(startBackendSync, 4000);
+                    }
                 }
             };
 
@@ -441,6 +497,7 @@
                 }
             });
             observer.observe(document.body, { childList: true, subtree: true });
+            }); // End of chrome.storage wrapper
         }
 
         let targetPrevSection = document.querySelector('.activity-from-friends');
