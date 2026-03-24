@@ -11,7 +11,9 @@
     <div class="topbar">
       <div class="brand-wrap">
         <h1>Letterboxd+</h1>
-        <p id="appVersion" class="app-version"></p>
+        <div class="version-row">
+          <p id="appVersion" class="app-version"></p>
+        </div>
       </div>
       <div class="toggle-wrap">
         <label class="toggle" for="scriptToggle" title="Enable or disable Letterboxd+ scripts">
@@ -33,15 +35,15 @@
     <section class="servers-card">
       <div class="servers-head">
         <button id="serversToggleBtn" class="section-toggle" type="button" aria-expanded="false">
-          <span>Servers</span>
+          <span>Embed Servers</span>
           <span class="chevron" aria-hidden="true"></span>
         </button>
       </div>
 
       <div id="serversBody" class="servers-body hidden">
         <div class="add-actions">
-          <button id="addServerBtn" class="add-btn" type="button">Add Server +</button>
-          <button id="manualBtn" class="manual-btn" type="button">Check Manual to Add Server</button>
+          <button id="addServerBtn" class="add-btn" type="button">Add Embed Server</button>
+          <button id="manualBtn" class="manual-btn" type="button">Check Manual</button>
         </div>
 
         <div id="addServerForm" class="add-form hidden">
@@ -53,14 +55,55 @@
           <p class="hint">Use <code>{tmdbId}</code> in the link.</p>
 
           <div class="form-actions">
-            <button id="checkConnectionBtn" class="btn secondary" type="button">Check connection</button>
-            <button id="saveServerBtn" class="btn primary" type="button">Save server</button>
+            <button id="checkConnectionBtn" class="btn secondary" type="button">Check Connection</button>
+            <button id="saveServerBtn" class="btn primary" type="button" disabled style="opacity:0.5;cursor:not-allowed;">Add</button>
           </div>
           <p id="serverFeedback" class="feedback"></p>
         </div>
 
         <p class="saved-tag">Saved:</p>
         <div id="serverList" class="server-list"></div>
+      </div>
+    </section>
+
+    <section class="servers-card">
+      <div class="servers-head">
+        <button id="cacheServersToggleBtn" class="section-toggle" type="button" aria-expanded="false">
+          <span>Cache Servers</span>
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      <div id="cacheServersBody" class="servers-body hidden">
+        <div class="add-actions">
+          <button id="addCacheServerBtn" class="add-btn" type="button">Add Cache Server</button>
+          <button id="manualCacheBtn" class="manual-btn" type="button">Check Manual</button>
+        </div>
+
+        <div id="addCacheServerForm" class="add-form hidden">
+          <label class="input-label" for="cacheServerLink">Server Address</label>
+          <input id="cacheServerLink" class="input" type="text" placeholder="http://192.168.1.100:6769" />
+
+          <div class="form-actions">
+            <button id="checkCacheConnectionBtn" class="btn secondary" type="button">Check Connection</button>
+            <button id="saveCacheServerBtn" class="btn primary" type="button" disabled style="opacity:0.5;cursor:not-allowed;">Add</button>
+          </div>
+          <p id="cacheServerFeedback" class="feedback"></p>
+        </div>
+
+        <p class="saved-tag">Saved Servers:</p>
+        <div id="cacheServerList" class="server-list"></div>
+
+        <div id="cacheFoldersSection" class="hidden" style="margin-top:10px; border-top:1px solid #202833; padding-top:10px;">
+          <button id="cacheFoldersToggleBtn" class="section-toggle" type="button" aria-expanded="false" style="background:transparent; border:none; padding:0; display:flex; justify-content:space-between; width:100%; cursor:pointer;">
+            <p class="saved-tag" style="margin:0;">Server Caches : <span id="totalCacheSize" style="color:#9eacbf;font-weight:normal;">0.00 MB</span></p>
+            <span class="chevron" aria-hidden="true" style="margin-top:0;"></span>
+          </button>
+          <div id="cacheFoldersBody" class="hidden" style="margin-top:10px;">
+            <div id="cacheFoldersList" class="server-list" style="max-height:150px; overflow-y:auto; padding-right:5px;"></div>
+            <button id="clearAllCacheBtn" class="btn primary" style="width:100%; margin-top:10px; background:#6d3245; border-color:#6d3245; color: #ffc1cf;">Clear all cache</button>
+          </div>
+        </div>
       </div>
     </section>
 

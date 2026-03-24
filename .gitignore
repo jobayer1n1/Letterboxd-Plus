@@ -1,8 +1,28 @@
-﻿/node_modules
+﻿# Dependencies
+node_modules/
+package-lock.json
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
 .DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project specific
 sample_letterboxd_movie_endpoint.html
 addon_plan.txt
 mdn_gecko.md
 /src/letterboxd-plus.zip
-/dist
+/dist/
+brain/
+cache_server/CacheServer.exe

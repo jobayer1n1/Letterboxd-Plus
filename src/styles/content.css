@@ -70,7 +70,8 @@
     margin: 0;
 }
 
-.letterboxd-plus-iframe-wrapper iframe {
+.letterboxd-plus-iframe-wrapper iframe,
+.letterboxd-plus-iframe-wrapper video {
     position: absolute;
     top: 0;
     left: 0;
@@ -80,4 +81,339 @@
     display: block;
     margin: 0;
     padding: 0;
+    background: #000;
+}
+
+/* Stats Header (Above Player) */
+.lbp-stats-header {
+    background: #18212b;
+    border-bottom: 1px solid #10171f;
+    padding: 8px 14px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 20px;
+    color: #9fb2c8;
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.lbp-stat-item {
+    display: flex;
+    gap: 6px;
+}
+
+#lbp-cache-speed, #lbp-cache-percent {
+    color: #f4c84d;
+    font-weight: bold;
+}
+
+/* Player Wrapper */
+.letterboxd-plus-iframe-wrapper {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    background: #000;
+    display: block;
+    line-height:      0;
+}
+
+.letterboxd-plus-iframe-wrapper iframe,
+.letterboxd-plus-iframe-wrapper video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+    margin: 0;
+    padding: 0;
+    background: #000;
+    z-index: 100 !important;
+}
+
+.lbp-controls-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%);
+    padding: 20px 15px 10px;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    transform: translateY(10px);
+    opacity: 0;
+    z-index: 200 !important; 
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.lbp-controls-container.active,
+.letterboxd-plus-iframe-wrapper:hover .lbp-controls-container {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    pointer-events: auto !important;
+}
+
+/* Aggressive Fullscreen Top Layer Fixes */
+.letterboxd-plus-iframe-wrapper:fullscreen {
+    background: #000 !important;
+}
+
+.letterboxd-plus-iframe-wrapper:fullscreen .lbp-controls-container,
+.letterboxd-plus-iframe-wrapper:-webkit-full-screen .lbp-controls-container {
+    z-index: 2147483647 !important;
+    opacity: 0;
+    pointer-events: none;
+    display: flex !important;
+}
+
+.letterboxd-plus-iframe-wrapper:fullscreen .lbp-controls-container.active,
+.letterboxd-plus-iframe-wrapper:fullscreen:hover .lbp-controls-container,
+.lbp-controls-container.active {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    pointer-events: auto !important;
+}
+
+/* Seek Bar Area */
+.lbp-seek-container {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    cursor: pointer;
+    position: relative;
+    border-radius: 2px;
+    transition: height 0.2s;
+}
+
+.lbp-seek-container:hover {
+    height: 6px;
+}
+
+.lbp-seek-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: #f4c84d;
+    border-radius: 2px;
+    width: 0;
+}
+
+.lbp-seek-handle {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.lbp-seek-container:hover .lbp-seek-handle {
+    opacity: 1;
+}
+
+/* Control Buttons Row */
+.lbp-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.lbp-controls-left, .lbp-controls-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.lbp-control-btn {
+    background: transparent;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, color 0.2s;
+    opacity: 0.9;
+}
+
+.lbp-control-btn:hover {
+    transform: scale(1.15);
+    opacity: 1;
+    color: #f4c84d;
+}
+
+.lbp-control-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
+
+/* Time Display */
+.lbp-time-display {
+    font-size: 13px;
+    color: #cbd5e0;
+    font-family: monospace;
+    user-select: none;
+}
+
+/* Vertical Volume Component */
+.lbp-volume-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.lbp-volume-slider-wrapper {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 34px;
+    height: 100px;
+    background: rgba(24, 33, 43, 0.9);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+.lbp-volume-container:hover .lbp-volume-slider-wrapper {
+    opacity: 1;
+    visibility: visible;
+    margin-bottom: 10px;
+}
+
+.lbp-volume-slider {
+    appearance: slider-vertical;
+    -webkit-appearance: slider-vertical;
+    width: 4px;
+    height: 80px;
+    accent-color: #f4c84d;
+    cursor: pointer;
+}
+
+/* Reuse and Style Subtitle Menu for Custom Controls */
+.lbp-sub-menu {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 20px; /* More space for the bar */
+    background: rgba(24, 33, 43, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    width: 180px;
+    max-height: 250px;
+    overflow-y: auto;
+    z-index: 1100;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    padding: 8px 0;
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateY(10px);
+    pointer-events: none;
+}
+
+.lbp-sub-menu.visible {
+    opacity: 1 !important;
+    transform: translateY(0) scale(1) !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+}
+
+.lbp-sub-item {
+    padding: 10px 16px;
+    font-size: 13px;
+    color: #cbd5e0;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.lbp-sub-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+}
+
+.lbp-sub-item.active {
+    color: #f4c84d;
+    background: rgba(244, 200, 77, 0.1);
+}
+
+.lbp-sub-item.active::before {
+    content: '✓';
+    font-weight: bold;
+}
+
+.lbp-sub-header {
+    padding: 8px 16px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #718096;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    margin-bottom: 4px;
+}
+
+/* Loading Overlay */
+.lbp-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #0f1318;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    color: #9fb2c8;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.lbp-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top: 3px solid #f4c84d;
+    border-radius: 50%;
+    animation: lbp-spin 1s linear infinite;
+    margin-bottom: 16px;
+}
+
+@keyframes lbp-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.lbp-loading-text {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* Elevate subtitles so they aren't hidden by custom bottom controls */
+#lbp-video::-webkit-media-text-track-container {
+    transform: translateY(-50px) !important;
+}
+#lbp-video::cue {
+    transform: translateY(-50px);
 }
