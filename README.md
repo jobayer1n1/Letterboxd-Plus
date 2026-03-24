@@ -1,4 +1,5 @@
 <div align = 'center'>
+<h1> Use v1.1 </h1>
 <h2>Letterboxd+</h2>
 <p>Turn your letterboxd into a streaming platform</p>
 </div>
