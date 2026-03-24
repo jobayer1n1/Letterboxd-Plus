@@ -10,7 +10,7 @@
 - Caching stream : 
   - It extracts the m3u8 master link and an english subtitle link from the embed player
   - Sends these links to the backend
-  - The Backend start downloading from these link and return a backend generated m3u8 link and the subtitle link
+  - The Backend starts downloading from these link and returns a generated m3u8 link(local) and the subtitle link(local)
   - The player fetches those links and start playing the video
   - It supports seek to play
 
