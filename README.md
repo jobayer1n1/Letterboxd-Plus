@@ -42,20 +42,15 @@ Ads come from third-party embed players and those iframes do not expose normal `
 3. Install from file:
    - `Settings > Install extension from file`
    - choose the downloaded `.xpi`.
-4. For caching u need to use your pc's server local address
+4. For caching u need to use your pc's cache server
 
 ---
 
-## Settings
-1. Enable/disable scripts toggle.
-2. `Check Update` against latest GitHub release.
-3. Embed server manager:
-   - Add server name + link template (must include `{tmdbId}`).
-   - Check connection.
-   - Save custom server.
-   - Delete custom servers.
-4. Cache server Manger:
-   - Add cache server
-   - Manage cache files
-4. Default servers are locked (grey style, non-deletable).
-5. `Check manual` button opens add-server manual page.
+## Cache Settings
+1. If you want to run remote http cache server:
+   - Click the Padlock icon (or the "tune" settings icon) in the Chrome address bar next to letterboxd.com.
+   - Click Site settings.
+   - Scroll down to Insecure content.
+   - Change it from "Block (default)" to Allow.
+   - Refresh Letterboxd.
+
