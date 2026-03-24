@@ -1,4 +1,4 @@
-# Dependencies
+﻿# Dependencies
 node_modules/
 package-lock.json
 
@@ -25,3 +25,4 @@ mdn_gecko.md
 /src/letterboxd-plus.zip
 /dist/
 brain/
+cache_server/CacheServer.exe
