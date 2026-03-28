@@ -1,0 +1,42 @@
+[
+  {
+    "name": "Vidfast",
+    "template": "https://vidfast.pro/movie/{tmdbId}?autoPlay=true",
+    "isDefault": true
+  },
+  {
+    "name": "Vidlink",
+    "template": "https://vidlink.pro/movie/{tmdbId}",
+    "isDefault": true
+  },
+  {
+    "name": "VidSrc.me",
+    "template": "https://vidsrc.me/embed/movie?tmdb={tmdbId}",
+    "isDefault": true
+  },
+  {
+    "name": "VidSrc.xyz",
+    "template": "https://vidsrc.xyz/embed/movie?tmdb={tmdbId}",
+    "isDefault": true
+  },
+  {
+    "name": "111movies",
+    "template": "https://111movies.net/movie/{tmdbId}",
+    "isDefault": true
+  },
+  {
+    "name": "2embed",
+    "template": "https://www.2embed.online/embed/movie/{tmdbId}",
+    "isDefault": true
+  },
+  {
+    "name": "ZXCS",
+    "template": "https://zxcstream.xyz/embed/movie/{tmdbId}",
+    "isDefault": true
+  },
+  {
+    "name": "SmashyStream",
+    "template": "https://player.smashystream.com/movie/{tmdbId}",
+    "isDefault": true
+  }
+]
