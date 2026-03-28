@@ -2,7 +2,9 @@ const fs = require("fs-extra");
 const path = require("path");
 const fetch = require("../utils/fetcher");
 const { getSubtitleDir } = require("../utils/paths");
-const { DEFAULT_HEADERS, PORT } = require("../config");
+const { DEFAULT_HEADERS, PORT} = require("../config");
+const { getBaseUrl } = require("../utils/url");
+
 
 async function cacheSubtitle(req, res) {
   const { tmdbId, subtitle_link } = req.body;
@@ -35,6 +37,7 @@ async function cacheSubtitle(req, res) {
 
 async function listSubtitles(req, res) {
   const { tmdbId } = req.params;
+  const baseUrl = getBaseUrl(req);
   const subDir = getSubtitleDir(tmdbId);
 
   if (!(await fs.pathExists(subDir))) {
@@ -44,7 +47,7 @@ async function listSubtitles(req, res) {
   const files = await fs.readdir(subDir);
   const subtitles = files.map(file => ({
     label: file,
-    url: `http://localhost:${PORT}/sub/${tmdbId}/${file}`
+    url: `${baseUrl}/sub/${tmdbId}/${file}`
   }));
 
   res.json(subtitles);

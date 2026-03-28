@@ -8,10 +8,13 @@ const activeStreams = require("../state");
 const fetch = require("../utils/fetcher");
 const { startBackgroundDownload } = require("../services/downloader");
 const { updateProgress } = require("../services/progress");
+const { getBaseUrl } = require("../utils/url");
+
 
 async function loadStream(req, res) {
   let { tmdbId, m3u8Url, m3u8, subtitle_link } = req.body;
   let headers = { ...DEFAULT_HEADERS, ...(req.body.headers || {}) };
+  const baseUrl = getBaseUrl(req);
 
   if (!tmdbId || (!m3u8Url && !m3u8)) {
     return res.status(400).json({ error: "Missing tmdbId or stream source" });
@@ -160,6 +163,7 @@ async function loadStream(req, res) {
     await fs.writeJson(metaPath(tmdbId), meta);
   }
 
+
   activeStreams[tmdbId] = {
     meta,
     headers,
@@ -167,20 +171,22 @@ async function loadStream(req, res) {
     downloading: false,
     speed: 0,
     lastBytes: 0,
-    startTime: Date.now()
+    startTime: Date.now(),
   };
 
   startBackgroundDownload(tmdbId);
 
   res.json({
     message: "Caching started",
-    streamUrl: `http://localhost:${PORT}/stream/${tmdbId}.m3u8`
+    streamUrl: `${baseUrl}/stream/${tmdbId}.m3u8`
   });
 }
 
 async function serveM3u8(req, res) {
   const { tmdbId } = req.params;
   const state = activeStreams[tmdbId];
+  const baseUrl = getBaseUrl(req);
+
 
   if (!state) return res.status(404).send("Not loaded");
 
@@ -189,12 +195,12 @@ async function serveM3u8(req, res) {
 
   if (state.meta.keys) {
     state.meta.keys.forEach((key, i) => {
-      m3u8 += `#EXT-X-KEY:METHOD=${key.method},URI="http://localhost:${PORT}/key/${tmdbId}/${i}"\n`;
+      m3u8 += `#EXT-X-KEY:METHOD=${key.method},URI="${baseUrl}/key/${tmdbId}/${i}"\n`;
     });
   }
 
   state.meta.segments.forEach((seg, i) => {
-    m3u8 += `#EXTINF:${seg.duration.toFixed(3)},\nhttp://localhost:${PORT}/seg/${tmdbId}/${seg.file}\n`;
+    m3u8 += `#EXTINF:${seg.duration.toFixed(3)},\n${baseUrl}/seg/${tmdbId}/${seg.file}\n`;
   });
 
   m3u8 += "#EXT-X-ENDLIST";
