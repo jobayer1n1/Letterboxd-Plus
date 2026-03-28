@@ -34,9 +34,4 @@
     "template": "https://zxcstream.xyz/embed/movie/{tmdbId}",
     "isDefault": true
   },
-  {
-    "name": "SmashyStream",
-    "template": "https://player.smashystream.com/movie/{tmdbId}",
-    "isDefault": true
-  }
 ]
