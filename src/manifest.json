@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Letterboxd+",
-  "version": "1.1",
+  "version": "1.1.1",
   "description": "Make your letterboxd a streaming platform",
   "permissions": ["activeTab", "storage"],
   "host_permissions": ["<all_urls>"],
@@ -10,7 +10,7 @@
       "matches": [
         "*://*.letterboxd.com/film/*"
       ],
-      "js": ["scripts/server-defaults.js", "scripts/content.js"],
+      "js": ["scripts/content.js"],
       "css": ["styles/content.css"],
       "run_at": "document_idle"
     }
@@ -23,6 +23,9 @@
         "required": ["none"]
       }
     }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://raw.githubusercontent.com https://github.com https://api.github.com"
   },
   "web_accessible_resources": [
     {

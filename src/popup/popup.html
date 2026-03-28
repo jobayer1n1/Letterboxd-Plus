@@ -11,7 +11,9 @@
     <div class="topbar">
       <div class="brand-wrap">
         <h1>Letterboxd+</h1>
-        <p id="appVersion" class="app-version"></p>
+        <div class="version-row">
+          <p id="appVersion" class="app-version"></p>
+        </div>
       </div>
       <div class="toggle-wrap">
         <label class="toggle" for="scriptToggle" title="Enable or disable Letterboxd+ scripts">
@@ -33,15 +35,17 @@
     <section class="servers-card">
       <div class="servers-head">
         <button id="serversToggleBtn" class="section-toggle" type="button" aria-expanded="false">
-          <span>Servers</span>
+          <span>Embed Servers</span>
           <span class="chevron" aria-hidden="true"></span>
         </button>
       </div>
 
       <div id="serversBody" class="servers-body hidden">
         <div class="add-actions">
-          <button id="addServerBtn" class="add-btn" type="button">Add Server +</button>
-          <button id="manualBtn" class="manual-btn" type="button">Check Manual to Add Server</button>
+          <div class="actions-row">
+            <button id="addServerBtn" class="add-btn" type="button">Add Embed Server</button>
+            <button id="manualBtn" class="manual-btn" type="button">Manual</button>
+          </div>
         </div>
 
         <div id="addServerForm" class="add-form hidden">
@@ -53,11 +57,14 @@
           <p class="hint">Use <code>{tmdbId}</code> in the link.</p>
 
           <div class="form-actions">
-            <button id="checkConnectionBtn" class="btn secondary" type="button">Check connection</button>
-            <button id="saveServerBtn" class="btn primary" type="button">Save server</button>
+            <button id="checkConnectionBtn" class="btn secondary" type="button">Check Connection</button>
+            <button id="saveServerBtn" class="btn primary" type="button" disabled>Add</button>
           </div>
           <p id="serverFeedback" class="feedback"></p>
         </div>
+
+        <button id="refreshServersBtn" class="refresh-btn" type="button">Refresh Servers</button>
+        <p id="defaultsFeedback" class="feedback defaults-feedback"></p>
 
         <p class="saved-tag">Saved:</p>
         <div id="serverList" class="server-list"></div>
@@ -65,7 +72,7 @@
     </section>
 
     <footer class="popup-footer">
-      <p class="footer-note">Use an ad blocker for a smoother experience</p>
+      <p class="footer-note">Use an ad blocker for a smoother experience :3</p>
       <div class="footer-actions">
         <a
           class="github-link"
@@ -83,7 +90,6 @@
     </footer>
   </main>
 
-  <script src="../scripts/server-defaults.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

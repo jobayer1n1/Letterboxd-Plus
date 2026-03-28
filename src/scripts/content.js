@@ -2,31 +2,116 @@
     const STORAGE_KEY = 'scriptsEnabled';
     const STORAGE_SERVERS_KEY = 'serverTemplates';
     let scriptsEnabled = true;
-    const DEFAULT_SERVERS = Array.isArray(globalThis.LETTERBOXD_PLUS_DEFAULT_SERVERS)
-        ? globalThis.LETTERBOXD_PLUS_DEFAULT_SERVERS
-        : [];
+    const embedServersJsonRawUrl = 'https://raw.githubusercontent.com/jobayer1n1/Letterboxd-Plus/main/embed_servers.json';
+    const embedServersJsonBlobUrl = 'https://github.com/jobayer1n1/Letterboxd-Plus/blob/main/embed_servers.json?raw=1';
 
     function normalizeTemplate(template) {
         return String(template || '').trim().toLowerCase();
     }
 
+    function storageGet(keys) {
+        return new Promise((resolve) => {
+            chrome.storage.local.get(keys, (result) => resolve(result));
+        });
+    }
+
+    function storageSet(value) {
+        return new Promise((resolve) => {
+            chrome.storage.local.set(value, () => resolve());
+        });
+    }
+
+    function sanitizeServers(value) {
+        const sanitized = [];
+        const seen = new Set();
+
+        (Array.isArray(value) ? value : []).forEach((server) => {
+            if (!server || !server.name || !server.template) return;
+            const name = String(server.name).trim();
+            const template = String(server.template).trim();
+            if (!name || !template) return;
+            if (!template.includes('{tmdbId}')) return;
+            if (!/^https:\/\//i.test(template)) return;
+
+            let testUrl;
+            try {
+                testUrl = new URL(template.replaceAll('{tmdbId}', '550'));
+            } catch (error) {
+                return;
+            }
+            if (!/^https?:$/.test(testUrl.protocol)) return;
+
+            const normalized = normalizeTemplate(template);
+            if (!normalized || seen.has(normalized)) return;
+            sanitized.push({ name, template, isDefault: Boolean(server.isDefault) });
+            seen.add(normalized);
+        });
+
+        return sanitized;
+    }
+
+    function parseJsonLenient(text) {
+        const cleaned = String(text || '')
+            .replace(/^\uFEFF/, '')
+            .trim()
+            .replace(/,\s*([}\]])/g, '$1');
+
+        return JSON.parse(cleaned);
+    }
+
+    async function fetchDefaultServers() {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10000);
+
+        try {
+            const candidates = [embedServersJsonRawUrl, embedServersJsonBlobUrl];
+            let payloadText = null;
+
+            for (const url of candidates) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        cache: 'no-store',
+                        signal: controller.signal,
+                        headers: { Accept: 'application/json' }
+                    });
+                    if (!response.ok) continue;
+                    payloadText = await response.text();
+                    break;
+                } catch (error) {
+                    // ignore and try next
+                }
+            }
+
+            if (!payloadText) return [];
+            const trimmed = payloadText.trim();
+            if (!trimmed.startsWith('[') && !trimmed.startsWith('{')) return [];
+
+            const payload = parseJsonLenient(payloadText);
+            const list = Array.isArray(payload) ? payload : [];
+            return sanitizeServers(list.map((s) => ({ ...s, isDefault: true }))).map((s) => ({ ...s, isDefault: true }));
+        } catch (error) {
+            return [];
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    async function ensureServersInitialized() {
+        const result = await storageGet([STORAGE_SERVERS_KEY]);
+        const existing = sanitizeServers(result[STORAGE_SERVERS_KEY]);
+        if (existing.length > 0) return existing;
+
+        const defaults = await fetchDefaultServers();
+        if (!defaults.length) return [];
+
+        await storageSet({ [STORAGE_SERVERS_KEY]: defaults });
+        return defaults;
+    }
+
     function loadServerDefinitions(tmdbId, callback) {
-        chrome.storage.local.get({ [STORAGE_SERVERS_KEY]: DEFAULT_SERVERS }, (result) => {
-            const saved = Array.isArray(result[STORAGE_SERVERS_KEY]) ? result[STORAGE_SERVERS_KEY] : [];
-            const merged = [];
-            const seen = new Set();
-            const pushUnique = (server) => {
-                if (!server || !server.name || !server.template) return;
-                const normalized = normalizeTemplate(server.template);
-                if (!normalized || seen.has(normalized)) return;
-                merged.push({ name: String(server.name).trim(), template: String(server.template).trim() });
-                seen.add(normalized);
-            };
-
-            DEFAULT_SERVERS.forEach(pushUnique);
-            saved.forEach(pushUnique);
-
-            const servers = merged
+        ensureServersInitialized().then((saved) => {
+            const servers = sanitizeServers(saved)
                 .map(server => ({
                     name: server.name,
                     src: server.template.replaceAll('{tmdbId}', tmdbId)
@@ -204,6 +289,11 @@
         }
 
         loadServerDefinitions(tmdbId, (servers) => {
+            if (!servers.length) {
+                console.log("Letterboxd+: No embed servers configured.");
+                return;
+            }
+
             servers.forEach((server, index) => {
                 const btn = document.createElement('button');
                 btn.className = 'server-btn' + (index === 0 ? ' active' : '');

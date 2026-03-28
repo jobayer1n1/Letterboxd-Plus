@@ -34,6 +34,12 @@ h1 {
   letter-spacing: 0.2px;
 }
 
+.version-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .app-version {
   margin: 0;
   color: #9ca3af;
@@ -231,9 +237,16 @@ h1 {
 
 .add-actions {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 8px;
   margin-bottom: 8px;
+}
+
+.actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
 }
 
 .add-btn {
@@ -246,6 +259,7 @@ h1 {
   font-weight: 600;
   padding: 5px 8px;
   cursor: pointer;
+  flex: 1 1 auto;
 }
 
 .add-btn:hover {
@@ -319,6 +333,11 @@ h1 {
   color: #e0e9f5;
 }
 
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .feedback {
   margin: 8px 0 0;
   font-size: 11px;
@@ -332,6 +351,17 @@ h1 {
 
 .feedback.error {
   color: #ff7f7f;
+}
+
+.defaults-feedback {
+  display: none;
+  margin: 0;
+  min-height: 0;
+  margin-bottom: 5px;
+}
+
+.defaults-feedback.shown {
+  display: block;
 }
 
 .server-list {
@@ -371,6 +401,7 @@ h1 {
   font-size: 11px;
   color: #97a6b7;
   font-weight: 600;
+  margin-top: 5px;
 }
 
 .server-row {
@@ -432,6 +463,23 @@ h1 {
 .manual-btn:hover {
   color: #ffffff;
   background: #1c2635;
+}
+
+.refresh-btn {
+  border: 1px solid #2d3b4b;
+  border-radius: 6px;
+  background: #1f2935;
+  color: #dce4f0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  cursor: pointer;
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.refresh-btn:hover {
+  background: #253142;
 }
 
 .github-link {
