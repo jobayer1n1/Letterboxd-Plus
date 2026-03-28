@@ -1,31 +1,10 @@
-<div align = 'center'>
-<h1> Use v1.1 </h1>
-<h2>Letterboxd+</h2>
-<p>Turn your letterboxd into a streaming platform</p>
-</div>
-
----
-
-## Features
-- Embedded stream like normal pirated streaming website.
-- Caching stream : 
-  - It extracts the m3u8 master link and an english subtitle link from the embed player
-  - Sends these links to the backend
-  - The Backend starts downloading from these link and returns a generated m3u8 link(local) and the subtitle link(local)
-  - The player fetches those links and start playing the video
-  - It supports seek to play
-
-
-
-## Use `uBlock Origin` or `uBlock Origin lite` (or any ad blocker) must.
+## Use `uBlock Origin` (or any ad blocker)
 Ads come from third-party embed players and those iframes do not expose normal `DOM` access.
+So ad-blocking is recommended externally (for smoother playback).
 
 ---
-## Install Cache Server (Windows)
-1. Download the .exe
-2. Run the .exe
 
-## Install Addon(Chrome)
+## Install (Chrome)
 1. Download latest release zip.
 2. Unzip it.
 3. Open `chrome://extensions/`.
@@ -35,7 +14,7 @@ Ads come from third-party embed players and those iframes do not expose normal `
 
 ---
 
-## Install Addon(Firefox Android)
+## Install (Firefox Android)
 1. Download latest `.xpi` from releases.
 2. Enable debug menu:
    - `Settings > About Firefox`
@@ -43,15 +22,29 @@ Ads come from third-party embed players and those iframes do not expose normal `
 3. Install from file:
    - `Settings > Install extension from file`
    - choose the downloaded `.xpi`.
-4. For caching u need to use your pc's cache server
 
 ---
 
-## Cache Settings
-1. If you want to run remote http cache server:
-   - Click the Padlock icon (or the "tune" settings icon) in the Chrome address bar next to letterboxd.com.
-   - Click Site settings.
-   - Scroll down to Insecure content.
-   - Change it from "Block (default)" to Allow.
-   - Refresh Letterboxd.
+## Update Flow (Manual)
+- No auto-update is implemented in addon logic.
+- Users can check from popup using `Check Update`.
+- If newer release exists, popup shows:
+  - `Update Available <tag>`
+  - `Updare` button.
+- Then user manually installs latest zip/xpi.
 
+---
+
+## Embed Server List Refresh
+- Fetch and update the stored default servers from github
+
+## Popup Features
+1. Enable/disable scripts toggle.
+2. `Check Update` against latest GitHub release.
+3. Custom server manager:
+   - Add server name + link template (must include `{tmdbId}`).
+   - Check connection.
+   - Save custom server.
+   - Delete custom servers.
+4. Default servers are locked (grey style, non-deletable).
+5. `Manual` button opens add-server manual page.
