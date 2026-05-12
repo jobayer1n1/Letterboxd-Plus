@@ -99,6 +99,15 @@
         <p class="saved-tag">Saved Servers:</p>
         <div id="cacheServerList" class="server-list"></div>
 
+        <div class="add-form" style="margin-top:10px;">
+          <label class="input-label" for="openSubtitlesApiKey">OpenSubtitles API Key</label>
+          <input id="openSubtitlesApiKey" class="input" type="password" placeholder="Paste API key" />
+          <div class="form-actions">
+            <button id="saveOpenSubtitlesKeyBtn" class="btn primary" type="button">Save Key</button>
+          </div>
+          <p id="openSubtitlesKeyStatus" class="feedback"></p>
+        </div>
+
         <div id="cacheFoldersSection" class="hidden" style="margin-top:10px; border-top:1px solid #202833; padding-top:10px;">
           <button id="cacheFoldersToggleBtn" class="section-toggle" type="button" aria-expanded="false" style="background:transparent; border:none; padding:0; display:flex; justify-content:space-between; width:100%; cursor:pointer;">
             <p class="saved-tag" style="margin:0;">Server Caches : <span id="totalCacheSize" style="color:#9eacbf;font-weight:normal;">0.00 MB</span></p>

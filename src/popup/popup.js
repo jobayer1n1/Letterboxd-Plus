@@ -26,6 +26,8 @@ const embedServersJsonBlobUrl =
 const releaseApiUrl = "https://api.github.com/repos/jobayer1n1/Letterboxd-Plus/releases/latest";
 const STORAGE_ENABLED_KEY = "scriptsEnabled";
 const STORAGE_SERVERS_KEY = "serverTemplates";
+const STORAGE_CAPTURE_TEMPLATE_KEY = "selectedCaptureTemplate";
+const DEFAULT_CAPTURE_TEMPLATE = "https://vidfast.pro/movie/{tmdbId}?autoPlay=true&sub=en";
 
 const manifestVersion = chrome.runtime.getManifest().version;
 appVersionEl.textContent = `v${manifestVersion}`;
@@ -114,8 +116,9 @@ function sendMessageToActiveTab(message) {
   });
 }
 
-function renderServerList(servers) {
+function renderServerList(servers, selectedCaptureTemplate = DEFAULT_CAPTURE_TEMPLATE) {
   serverListEl.textContent = "";
+  const normalizedSelectedCapture = normalizeTemplate(selectedCaptureTemplate);
 
   servers.forEach((server) => {
     const item = document.createElement("div");
@@ -138,6 +141,16 @@ function renderServerList(servers) {
     left.appendChild(link);
     row.appendChild(left);
 
+    const selectCaptureBtn = document.createElement("button");
+    selectCaptureBtn.type = "button";
+    selectCaptureBtn.className = "btn secondary";
+    selectCaptureBtn.style.padding = "4px 6px";
+    selectCaptureBtn.style.fontSize = "10px";
+    const isSelectedCapture = normalizeTemplate(server.template) === normalizedSelectedCapture;
+    selectCaptureBtn.textContent = isSelectedCapture ? "Cache Target" : "Use For Cache";
+    selectCaptureBtn.disabled = isSelectedCapture;
+    row.appendChild(selectCaptureBtn);
+
     if (!server.isDefault) {
       const deleteBtn = document.createElement("button");
       deleteBtn.type = "button";
@@ -146,6 +159,15 @@ function renderServerList(servers) {
       deleteBtn.dataset.template = normalizeTemplate(server.template);
       row.appendChild(deleteBtn);
     }
+
+    selectCaptureBtn.addEventListener("click", () => {
+      chrome.storage.local.set({ [STORAGE_CAPTURE_TEMPLATE_KEY]: server.template }, () => {
+        loadServers((updatedServers) => {
+          renderServerList(updatedServers, server.template);
+          setFeedback(`Selected "${server.name}" as cache detection target.`, "success");
+        });
+      });
+    });
 
     item.appendChild(row);
     serverListEl.appendChild(item);
@@ -200,6 +222,12 @@ function storageSet(value) {
 function loadServers(callback) {
   chrome.storage.local.get([STORAGE_SERVERS_KEY], (result) => {
     callback(sanitizeServers(result[STORAGE_SERVERS_KEY]));
+  });
+}
+
+function renderServerListWithSelection(servers) {
+  chrome.storage.local.get({ [STORAGE_CAPTURE_TEMPLATE_KEY]: DEFAULT_CAPTURE_TEMPLATE }, (res) => {
+    renderServerList(servers, res[STORAGE_CAPTURE_TEMPLATE_KEY]);
   });
 }
 
@@ -420,7 +448,7 @@ function saveServer() {
 
         const updated = [...seeded, { name, template, isDefault: false }];
         chrome.storage.local.set({ [STORAGE_SERVERS_KEY]: updated }, () => {
-          renderServerList(updated);
+          renderServerListWithSelection(updated);
           setFeedback("Server saved successfully.", "success");
           serverNameEl.value = "";
           serverLinkEl.value = "";
@@ -442,7 +470,7 @@ function saveServer() {
 
     const updated = [...servers, { name, template, isDefault: false }];
     chrome.storage.local.set({ [STORAGE_SERVERS_KEY]: updated }, () => {
-      renderServerList(updated);
+      renderServerListWithSelection(updated);
       setFeedback("Server saved successfully.", "success");
       serverNameEl.value = "";
       serverLinkEl.value = "";
@@ -525,17 +553,26 @@ serverListEl.addEventListener("click", (event) => {
       return normalizeTemplate(server.template) !== template;
     });
 
-    chrome.storage.local.set({ [STORAGE_SERVERS_KEY]: updated }, () => {
-      renderServerList(updated);
-      setFeedback("Server deleted.", "success");
-      sendMessageToActiveTab({ type: "LETTERBOXD_PLUS_SERVERS_UPDATED" });
+    chrome.storage.local.get({ [STORAGE_CAPTURE_TEMPLATE_KEY]: DEFAULT_CAPTURE_TEMPLATE }, (captureRes) => {
+      const selectedCapture = captureRes[STORAGE_CAPTURE_TEMPLATE_KEY];
+      const removedWasSelected = normalizeTemplate(selectedCapture) === template;
+      const nextCapture = removedWasSelected ? DEFAULT_CAPTURE_TEMPLATE : selectedCapture;
+
+      chrome.storage.local.set(
+        { [STORAGE_SERVERS_KEY]: updated, [STORAGE_CAPTURE_TEMPLATE_KEY]: nextCapture },
+        () => {
+          renderServerList(updated, nextCapture);
+          setFeedback("Server deleted.", "success");
+          sendMessageToActiveTab({ type: "LETTERBOXD_PLUS_SERVERS_UPDATED" });
+        }
+      );
     });
   });
 });
 
 (async () => {
   const servers = await ensureServersInitialized();
-  renderServerList(servers);
+  renderServerListWithSelection(servers);
 })();
 
 manualBtn.addEventListener("click", () => {
@@ -569,8 +606,18 @@ refreshServersBtn.addEventListener("click", async () => {
       isDefault: Boolean(server.isDefault)
     }));
 
-    await storageSet({ [STORAGE_SERVERS_KEY]: nextServers });
-    renderServerList(nextServers);
+    const captureRes = await storageGet([STORAGE_CAPTURE_TEMPLATE_KEY]);
+    const selectedCapture = captureRes[STORAGE_CAPTURE_TEMPLATE_KEY] || DEFAULT_CAPTURE_TEMPLATE;
+    const exists = nextServers.some(
+      (server) => normalizeTemplate(server.template) === normalizeTemplate(selectedCapture)
+    );
+    const nextCapture = exists ? selectedCapture : DEFAULT_CAPTURE_TEMPLATE;
+
+    await storageSet({
+      [STORAGE_SERVERS_KEY]: nextServers,
+      [STORAGE_CAPTURE_TEMPLATE_KEY]: nextCapture
+    });
+    renderServerList(nextServers, nextCapture);
     setDefaultsFeedback(`Successfully refreshed ${fetchedDefaults.length} default servers.`, "success");
     sendMessageToActiveTab({ type: "LETTERBOXD_PLUS_SERVERS_UPDATED" });
   } catch (error) {
@@ -630,6 +677,9 @@ const checkCacheConnectionBtn = document.getElementById("checkCacheConnectionBtn
 const saveCacheServerBtn = document.getElementById("saveCacheServerBtn");
 const cacheServerFeedback = document.getElementById("cacheServerFeedback");
 const cacheServerList = document.getElementById("cacheServerList");
+const openSubtitlesApiKeyInput = document.getElementById("openSubtitlesApiKey");
+const saveOpenSubtitlesKeyBtn = document.getElementById("saveOpenSubtitlesKeyBtn");
+const openSubtitlesKeyStatus = document.getElementById("openSubtitlesKeyStatus");
 
 const cacheFoldersSection = document.getElementById("cacheFoldersSection");
 const cacheFoldersList = document.getElementById("cacheFoldersList");
@@ -659,6 +709,31 @@ function normalizeUrl(url) {
 function setCacheFeedback(msg, ok, color) {
   cacheServerFeedback.textContent = msg;
   cacheServerFeedback.style.color = color || (ok ? "#66d08a" : "#ff7f7f");
+}
+
+function setOpenSubtitlesStatus(message, type = "default") {
+  openSubtitlesKeyStatus.textContent = message;
+  openSubtitlesKeyStatus.classList.remove("success", "error");
+  if (type === "success" || type === "error") {
+    openSubtitlesKeyStatus.classList.add(type);
+  }
+}
+
+async function loadOpenSubtitlesKeyStatus(serverUrl) {
+  if (!serverUrl) return;
+  try {
+    const res = await fetch(`${serverUrl}/subtitle/provider/opensubtitles/key`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.hasKey) {
+      setOpenSubtitlesStatus(`Saved: ${data.maskedKey || "configured"}`, "success");
+      openSubtitlesApiKeyInput.value = "";
+    } else {
+      setOpenSubtitlesStatus("No key saved yet.");
+    }
+  } catch (e) {
+    setOpenSubtitlesStatus("Couldn't load OpenSubtitles key status.", "error");
+  }
 }
 
 async function renderCacheFolders(serverUrl) {
@@ -796,6 +871,7 @@ async function renderCacheServerList() {
     } else {
        renderCacheFolders(selected);
     }
+    loadOpenSubtitlesKeyStatus(selected);
   });
   });
 }
@@ -839,6 +915,40 @@ saveCacheServerBtn.onclick = () => {
        setCacheFeedback("Added successfully", true);
        renderCacheServerList();
      });
+  });
+};
+
+saveOpenSubtitlesKeyBtn.onclick = async () => {
+  const apiKey = String(openSubtitlesApiKeyInput.value || "").trim();
+  if (!apiKey) {
+    setOpenSubtitlesStatus("Please enter an API key.", "error");
+    return;
+  }
+
+  setOpenSubtitlesStatus("Saving...");
+  saveOpenSubtitlesKeyBtn.disabled = true;
+
+  getCacheServers(async (_, selected) => {
+    try {
+      const res = await fetch(`${selected}/subtitle/provider/opensubtitles/key`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey })
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(errText || `HTTP ${res.status}`);
+      }
+
+      setOpenSubtitlesStatus("OpenSubtitles key saved.", "success");
+      openSubtitlesApiKeyInput.value = "";
+      loadOpenSubtitlesKeyStatus(selected);
+    } catch (e) {
+      setOpenSubtitlesStatus("Failed to save OpenSubtitles key.", "error");
+    } finally {
+      saveOpenSubtitlesKeyBtn.disabled = false;
+    }
   });
 };
 

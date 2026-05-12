@@ -25,5 +25,9 @@ router.delete("/cache", streamController.clearAllCache);
 router.post("/subtitle", subtitleController.cacheSubtitle);
 router.get("/subtitle/:tmdbId", subtitleController.listSubtitles);
 router.get("/sub/:tmdbId/:filename", subtitleController.serveSubtitle);
+router.post("/subtitle/provider/opensubtitles/key", subtitleController.setOpenSubtitlesApiKey);
+router.get("/subtitle/provider/opensubtitles/key", subtitleController.getOpenSubtitlesApiKeyStatus);
+router.get("/subtitle/search/:tmdbId", subtitleController.searchOpenSubtitles);
+router.post("/subtitle/opensubtitles/fetch", subtitleController.fetchOpenSubtitlesCandidate);
 
 module.exports = router;

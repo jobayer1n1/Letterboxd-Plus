@@ -37,8 +37,17 @@
             streamSection.appendChild(playerWrapper);
         } else {
             // ----- Automated Capture Phase -----
-            chrome.storage.local.get({ selectedCacheServer: 'http://localhost:6769' }, (storageRes) => {
+            chrome.storage.local.get({
+                selectedCacheServer: 'http://localhost:6769',
+                selectedCaptureTemplate: 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true&sub=en'
+            }, (storageRes) => {
                 const C_SERVER = storageRes.selectedCacheServer.replace(/\/$/, "");
+                const captureTemplate = String(storageRes.selectedCaptureTemplate || 'https://vidfast.pro/movie/{tmdbId}?autoPlay=true&sub=en').trim();
+                const captureSourceUrl = captureTemplate.replaceAll('{tmdbId}', tmdbId);
+                let captureOrigin = 'https://vidfast.pro';
+                try {
+                    captureOrigin = new URL(captureSourceUrl).origin;
+                } catch (_) {}
             
                 // 1. Loading UI
             const loadingOverlay = document.createElement('div');
@@ -53,8 +62,7 @@
             // 2. Hidden Capture Iframe
             const captureIframe = document.createElement('iframe');
             captureIframe.style.display = 'none';
-            // Use Vidfast with sub=en as requested
-            captureIframe.src = `https://vidfast.pro/movie/${tmdbId}?autoPlay=true&sub=en`;
+            captureIframe.src = captureSourceUrl;
             streamSection.appendChild(captureIframe);
 
             let capturedM3u8 = null;
@@ -73,8 +81,8 @@
                     m3u8Url: capturedM3u8,
                     subtitle_link: capturedSub, // Unified subtitle sync
                     headers: {
-                        "Referer": "https://vidfast.pro/",
-                        "Origin": "https://vidfast.pro"
+                        "Referer": `${captureOrigin}/`,
+                        "Origin": captureOrigin
                     }
                 };
                 
@@ -509,6 +517,9 @@
                     });
 
                     // Subtitle menu logic (reuse existing logic but adapt to new menu position)
+                    let openSubCandidates = [];
+                    let downloadingOpenSubFileId = null;
+
                     const updateMenu = () => {
                         subMenu.innerHTML = '<div class="lbp-sub-header">Subtitles</div>';
                         
@@ -534,6 +545,52 @@
                             };
                             subMenu.appendChild(item);
                         });
+
+                        if (openSubCandidates.length > 0) {
+                            const openSubHeader = document.createElement('div');
+                            openSubHeader.className = 'lbp-sub-header';
+                            openSubHeader.textContent = 'OpenSubtitles (EN)';
+                            subMenu.appendChild(openSubHeader);
+
+                            openSubCandidates.forEach((candidate) => {
+                                const cItem = document.createElement('div');
+                                cItem.className = 'lbp-sub-item';
+                                const label = candidate.fileName || `Subtitle ${candidate.fileId}`;
+                                const isDownloading = downloadingOpenSubFileId === candidate.fileId;
+                                cItem.textContent = isDownloading ? `Downloading... ${label}` : `+ ${label}`;
+                                cItem.style.opacity = isDownloading ? '0.7' : '1';
+                                cItem.onclick = async () => {
+                                    if (isDownloading) return;
+                                    downloadingOpenSubFileId = candidate.fileId;
+                                    updateMenu();
+                                    try {
+                                        await fetch(`${C_SERVER}/subtitle/opensubtitles/fetch`, {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                tmdbId,
+                                                fileId: candidate.fileId,
+                                                fileName: candidate.fileName || `${candidate.id || candidate.fileId}.srt`
+                                            })
+                                        });
+                                        await syncTracksFromServer();
+                                        const targetTrack = Array.from(video.textTracks).find(
+                                            (t) => t.label === (candidate.fileName || '')
+                                        );
+                                        if (targetTrack) {
+                                            Array.from(video.textTracks).forEach(t => t.mode = 'disabled');
+                                            targetTrack.mode = 'showing';
+                                        }
+                                        openSubCandidates = openSubCandidates.filter((x) => x.fileId !== candidate.fileId);
+                                    } catch (_) {
+                                    } finally {
+                                        downloadingOpenSubFileId = null;
+                                        updateMenu();
+                                    }
+                                };
+                                subMenu.appendChild(cItem);
+                            });
+                        }
 
                         const uploadBtn = document.createElement('div');
                         uploadBtn.className = 'lbp-sub-item';
@@ -565,6 +622,48 @@
                         updateMenu();
                     });
 
+                    const syncTracksFromServer = async () => {
+                        try {
+                            const resp = await fetch(`${C_SERVER}/subtitle/${tmdbId}`);
+                            if (!resp.ok) return;
+                            const cachedSubs = await resp.json();
+                            cachedSubs.forEach((sub, idx) => {
+                                if (Array.from(video.textTracks).some(t => t.label === sub.label)) return;
+                                const trackEl = document.createElement('track');
+                                trackEl.kind = 'subtitles';
+                                trackEl.label = sub.label;
+                                trackEl.src = sub.url;
+                                if (idx === 0) trackEl.default = true;
+                                video.appendChild(trackEl);
+                            });
+                            setTimeout(() => {
+                                if (video.textTracks.length > 0 && Array.from(video.textTracks).every(t => t.mode !== 'showing')) {
+                                    video.textTracks[0].mode = 'showing';
+                                }
+                                updateMenu();
+                            }, 400);
+                        } catch (_) {}
+                    };
+
+                    const loadOpenSubtitlesEnglishCandidates = async () => {
+                        try {
+                            const searchResp = await fetch(`${C_SERVER}/subtitle/search/${tmdbId}?lang=en`);
+                            if (!searchResp.ok) return;
+                            const payload = await searchResp.json();
+                            const candidates = Array.isArray(payload?.candidates) ? payload.candidates : [];
+                            if (!candidates.length) {
+                                openSubCandidates = [];
+                                updateMenu();
+                                return;
+                            }
+                            const existingLabels = new Set(Array.from(video.textTracks).map((t) => t.label));
+                            openSubCandidates = candidates
+                                .filter((c) => c && c.fileId)
+                                .filter((c) => !existingLabels.has(c.fileName || ''));
+                            updateMenu();
+                        } catch (_) {}
+                    };
+
                     const hlsUrl = data.streamUrl;
                     if (globalThis.Hls && Hls.isSupported()) {
                         const hls = new Hls({ debug: false });
@@ -584,26 +683,7 @@
                     video.addEventListener('seeking', () => sendResume('seek'));
                     window.addEventListener('beforeunload', onBeforeUnloadSync);
 
-                    fetch(`${C_SERVER}/subtitle/${tmdbId}`)
-                        .then(r => r.json())
-                        .then(cachedSubs => {
-                            cachedSubs.forEach((sub, idx) => {
-                                if (Array.from(video.textTracks).some(t => t.label === sub.label)) return;
-                                const trackEl = document.createElement('track');
-                                trackEl.kind = 'subtitles';
-                                trackEl.label = sub.label;
-                                trackEl.src = sub.url;
-                                if (idx === 0) trackEl.default = true;
-                                video.appendChild(trackEl);
-                            });
-                            // Auto-enable first track if none active
-                            setTimeout(() => {
-                                if (video.textTracks.length > 0 && Array.from(video.textTracks).every(t => t.mode !== 'showing')) {
-                                    video.textTracks[0].mode = 'showing';
-                                }
-                                updateMenu();
-                            }, 1000);
-                        });
+                    syncTracksFromServer().then(() => loadOpenSubtitlesEnglishCandidates());
 
                     // Start progress polling
                     const pollInterval = setInterval(() => {
