@@ -290,10 +290,8 @@
         });
         observer.observe(document.body, { childList: true, subtree: true });
         
-        setInterval(() => {
-            chrome.runtime.sendMessage({ type: 'FORCE_HEALTH_CHECK' }).catch(()=>{});
-        }, 5000);
-        chrome.runtime.sendMessage({ type: 'FORCE_HEALTH_CHECK' }).catch(()=>{});
+        // Avoid periodic runtime messaging from content-script context.
+        // Background handles server health checks.
     }
 
     chrome.storage.local.get({ [STORAGE_KEY]: true }, (result) => {

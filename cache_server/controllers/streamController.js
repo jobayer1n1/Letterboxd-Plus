@@ -10,6 +10,35 @@ const { startBackgroundDownload } = require("../services/downloader");
 const { updateProgress } = require("../services/progress");
 const { getBaseUrl } = require("../utils/url");
 
+const WATCH_PROGRESS_FILE = path.join(BASE_DIR, "_watch-progress.json");
+
+async function readWatchProgressStore() {
+  try {
+    if (!(await fs.pathExists(WATCH_PROGRESS_FILE))) return {};
+    const data = await fs.readJson(WATCH_PROGRESS_FILE);
+    if (!data || typeof data !== "object" || Array.isArray(data)) return {};
+    return data;
+  } catch (_) {
+    return {};
+  }
+}
+
+async function writeWatchProgressStore(store) {
+  await fs.writeJson(WATCH_PROGRESS_FILE, store, { spaces: 2 });
+}
+
+function normalizeProgressPayload(tmdbId, payload) {
+  const position = Number(payload?.position);
+  const duration = Number(payload?.duration);
+  return {
+    tmdbId: String(tmdbId),
+    position: Number.isFinite(position) ? Math.max(0, position) : 0,
+    duration: Number.isFinite(duration) ? Math.max(0, duration) : 0,
+    state: String(payload?.state || "playing"),
+    updatedAt: Number.isFinite(Number(payload?.updatedAt)) ? Number(payload.updatedAt) : Date.now()
+  };
+}
+
 
 async function loadStream(req, res) {
   let { tmdbId, m3u8Url, m3u8, subtitle_link } = req.body;
@@ -400,6 +429,38 @@ async function getCacheSize(req, res) {
   }
 }
 
+async function getWatchProgress(req, res) {
+  const { tmdbId } = req.params;
+  const store = await readWatchProgressStore();
+  const item = store[String(tmdbId)];
+  if (!item) {
+    return res.json({ tmdbId: String(tmdbId), position: 0, duration: 0, state: "idle", updatedAt: 0 });
+  }
+  res.json(item);
+}
+
+async function putWatchProgress(req, res) {
+  const { tmdbId } = req.params;
+  const normalized = normalizeProgressPayload(tmdbId, req.body);
+
+  const store = await readWatchProgressStore();
+  const existing = store[String(tmdbId)];
+  if (!existing || normalized.updatedAt >= Number(existing.updatedAt || 0)) {
+    store[String(tmdbId)] = normalized;
+    await writeWatchProgressStore(store);
+  }
+
+  res.json({ success: true, progress: store[String(tmdbId)] || normalized });
+}
+
+async function deleteWatchProgress(req, res) {
+  const { tmdbId } = req.params;
+  const store = await readWatchProgressStore();
+  delete store[String(tmdbId)];
+  await writeWatchProgressStore(store);
+  res.json({ success: true });
+}
+
 module.exports = {
   loadStream,
   serveM3u8,
@@ -410,5 +471,8 @@ module.exports = {
   getCacheList,
   deleteCache,
   clearAllCache,
-  getCacheSize
+  getCacheSize,
+  getWatchProgress,
+  putWatchProgress,
+  deleteWatchProgress
 };

@@ -4,6 +4,18 @@ self.addEventListener('unhandledrejection', (event) => console.error('SW Unhandl
 
 const processedUrls = new Map();
 const CACHE_TIME = 60000; // 1 minute cache
+const SUBTITLE_EXTENSIONS = [".vtt", ".srt", ".webvtt", ".ass", ".ssa", ".ttml", ".dfxp"];
+
+function hasSubtitleLikeExtension(rawUrl) {
+    try {
+        const u = new URL(rawUrl);
+        const path = (u.pathname || "").toLowerCase();
+        return SUBTITLE_EXTENSIONS.some((ext) => path.endsWith(ext));
+    } catch (_) {
+        const lower = String(rawUrl || "").toLowerCase();
+        return SUBTITLE_EXTENSIONS.some((ext) => lower.includes(ext));
+    }
+}
 
 async function getTabId(tabId) {
     if (tabId >= 0) return tabId;
@@ -15,12 +27,37 @@ async function getTabId(tabId) {
     }
 }
 
+async function getTargetTabIds(tabId) {
+    const ids = new Set();
+
+    if (tabId >= 0) {
+        ids.add(tabId);
+        return [...ids];
+    }
+
+    const activeId = await getTabId(tabId);
+    if (typeof activeId === 'number') ids.add(activeId);
+
+    try {
+        const tabs = await chrome.tabs.query({ url: ["*://*.letterboxd.com/film/*"] });
+        for (const t of tabs) {
+            if (typeof t.id === 'number') ids.add(t.id);
+        }
+    } catch (_) {}
+
+    return [...ids];
+}
+
 chrome.webRequest.onBeforeRequest.addListener(
     async (details) => {
         const url = details.url;
-        const isM3U8 = url.includes('.m3u8');
-        const isSub = url.includes('.vtt') || url.includes('.srt');
+        const lowerUrl = String(url || "").toLowerCase();
+        const isM3U8 = lowerUrl.includes('.m3u8');
+        const isSub = hasSubtitleLikeExtension(url);
         if (!isM3U8 && !isSub) return;
+
+        const targetTabIds = await getTargetTabIds(details.tabId);
+        if (!targetTabIds.length) return;
 
         const now = Date.now();
         if (processedUrls.has(url) && (now - processedUrls.get(url)) < CACHE_TIME) {
@@ -28,13 +65,10 @@ chrome.webRequest.onBeforeRequest.addListener(
         }
         processedUrls.set(url, now);
 
-        const realTabId = await getTabId(details.tabId);
-        if (realTabId === undefined) return;
-
         if (isM3U8) {
-            analyzePlaylist(url, realTabId);
+            analyzePlaylist(url, targetTabIds);
         } else {
-            notifySubtitle(realTabId, url, "External File");
+            notifySubtitle(targetTabIds, url, "External File");
         }
 
         // Cleanup cache if it grows too large
@@ -53,35 +87,43 @@ chrome.webRequest.onHeadersReceived.addListener(
         if (details.method === 'OPTIONS') return;
         const cTypeHeader = (details.responseHeaders || []).find(h => h.name.toLowerCase() === 'content-type');
         if (!cTypeHeader) return;
-        
+
         const cType = cTypeHeader.value.toLowerCase();
-        if (cType.includes('text/vtt') || cType.includes('text/srt') || cType.includes('application/x-subrip')) {
+        if (
+            cType.includes('text/vtt') ||
+            cType.includes('application/vtt') ||
+            cType.includes('text/srt') ||
+            cType.includes('application/x-subrip') ||
+            cType.includes('application/ttml+xml') ||
+            cType.includes('application/xml+ttml')
+        ) {
             const url = details.url;
-            
-            // If it already had a .vtt/.srt extension, onBeforeRequest probably caught it.
-            // But just in case, we will notify here if not historically cached.
+
+            const targetTabIds = await getTargetTabIds(details.tabId);
+            if (!targetTabIds.length) return;
+
             const now = Date.now();
             if (processedUrls.has(url) && (now - processedUrls.get(url)) < CACHE_TIME) {
                 return;
             }
             processedUrls.set(url, now);
-            
-            const realTabId = await getTabId(details.tabId);
-            if (realTabId === undefined) return;
-            
-            notifySubtitle(realTabId, url, "Detected Subtitle");
+
+            notifySubtitle(targetTabIds, url, "Detected Subtitle");
         }
     },
     { urls: ["<all_urls>"] },
     ["responseHeaders"]
 );
 
-async function analyzePlaylist(url, tabId) {
+async function analyzePlaylist(url, tabIds) {
     try {
-        const response = await fetch(url);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
         if (!response.ok) return;
         const text = await response.text();
-        
+
         // 1. Detect Resolutions (Master Playlist)
         const resolutions = [];
         const resRegex = /#EXT-X-STREAM-INF.*RESOLUTION=(\d+x\d+)/g;
@@ -93,44 +135,87 @@ async function analyzePlaylist(url, tabId) {
         if (resolutions.length > 0) {
             const uniqueResolutions = [...new Set(resolutions)];
             console.log(`Letterboxd+: M3U8 Master Found: ${url} [${uniqueResolutions.join(', ')}]`);
-            chrome.tabs.sendMessage(tabId, {
-                type: 'LETTERBOXD_PLUS_M3U8_DETECTED',
-                isMaster: true,
-                url: url,
-                resolutions: uniqueResolutions
-            }).catch(() => {});
+            for (const tabId of tabIds) {
+                chrome.tabs.sendMessage(tabId, {
+                    type: 'LETTERBOXD_PLUS_M3U8_DETECTED',
+                    isMaster: true,
+                    url: url,
+                    resolutions: uniqueResolutions
+                }).catch(() => {});
+            }
         } else {
             console.log(`Letterboxd+: M3U8 Variant/Stream Found: ${url}`);
-            chrome.tabs.sendMessage(tabId, {
-                type: 'LETTERBOXD_PLUS_M3U8_DETECTED',
-                isMaster: false,
-                url: url
-            }).catch(() => {});
+            for (const tabId of tabIds) {
+                chrome.tabs.sendMessage(tabId, {
+                    type: 'LETTERBOXD_PLUS_M3U8_DETECTED',
+                    isMaster: false,
+                    url: url
+                }).catch(() => {});
+            }
         }
 
         // 2. Detect Subtitles (Master Playlist)
-        const subRegex = /#EXT-X-MEDIA:TYPE=SUBTITLES.*?NAME="([^"]+)".*?URI="([^"]+)"/g;
-        let subMatch;
-        while ((subMatch = subRegex.exec(text)) !== null) {
-            const name = subMatch[1];
-            let subUrl = subMatch[2];
+        const parseAttrList = (line) => {
+            const out = {};
+            const payload = line.includes(":") ? line.split(":").slice(1).join(":") : "";
+            const re = /([A-Z0-9-]+)=("[^"]*"|[^,]*)/gi;
+            let m;
+            while ((m = re.exec(payload)) !== null) {
+                const key = String(m[1] || "").toUpperCase();
+                let value = String(m[2] || "").trim();
+                if (value.startsWith('"') && value.endsWith('"')) {
+                    value = value.slice(1, -1);
+                }
+                out[key] = value;
+            }
+            return out;
+        };
+
+        const subtitleGroups = new Set();
+        for (const line of text.split(/\r?\n/)) {
+            if (!line.startsWith("#EXT-X-STREAM-INF")) continue;
+            const attrs = parseAttrList(line);
+            if (attrs.SUBTITLES) subtitleGroups.add(attrs.SUBTITLES);
+        }
+
+        const foundFromMaster = [];
+        const lines = text.split(/\r?\n/);
+        for (const line of lines) {
+            if (!line.startsWith('#EXT-X-MEDIA')) continue;
+            if (!/TYPE=SUBTITLES/i.test(line)) continue;
+
+            const attrs = parseAttrList(line);
+            if (!attrs.URI) continue;
+            // If groups are declared by stream variants, prefer matching those groups.
+            if (subtitleGroups.size > 0 && attrs["GROUP-ID"] && !subtitleGroups.has(attrs["GROUP-ID"])) {
+                continue;
+            }
+
+            const name = attrs.NAME || attrs.LANGUAGE || attrs["GROUP-ID"] || 'Playlist Subtitle';
+            let subUrl = attrs.URI;
             if (!subUrl.startsWith('http')) {
                 subUrl = new URL(subUrl, url).href;
             }
-            notifySubtitle(tabId, subUrl, name);
+            foundFromMaster.push({ name, subUrl });
+            notifySubtitle(tabIds, subUrl, name);
+        }
+        if (foundFromMaster.length > 0) {
+            console.log(`Letterboxd+: Master playlist subtitle tracks found: ${foundFromMaster.length}`);
         }
     } catch (e) {
-        // Silent error
+        console.log(`Letterboxd+: Failed to analyze playlist for subtitles: ${url} (${e && e.message ? e.message : e})`);
     }
 }
 
-function notifySubtitle(tabId, url, label) {
+function notifySubtitle(tabIds, url, label) {
     console.log(`Letterboxd+: Subtitle Detected: ${label} -> ${url}`);
-    chrome.tabs.sendMessage(tabId, {
-        type: 'LETTERBOXD_PLUS_SUBTITLE_DETECTED',
-        url: url,
-        label: label
-    }).catch(() => {});
+    for (const tabId of tabIds) {
+        chrome.tabs.sendMessage(tabId, {
+            type: 'LETTERBOXD_PLUS_SUBTITLE_DETECTED',
+            url: url,
+            label: label
+        }).catch(() => {});
+    }
 }
 
 async function checkServerHealth() {
@@ -139,11 +224,11 @@ async function checkServerHealth() {
             const url = `${resStorage.selectedCacheServer.replace(/\/$/, '')}/status`;
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 2000);
-            const res = await fetch(url, { 
+            const res = await fetch(url, {
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
-            
+
             if (res.ok) {
                 const data = await res.json();
                 if (data && data.safeword === 6769) {
@@ -175,4 +260,3 @@ chrome.runtime.onMessage.addListener((message) => {
         checkServerHealth();
     }
 });
-

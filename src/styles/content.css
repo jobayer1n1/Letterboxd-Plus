@@ -202,6 +202,17 @@
     width: 0;
 }
 
+.lbp-seek-buffered {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.45);
+    border-radius: 2px;
+    width: 0;
+    pointer-events: none;
+}
+
 .lbp-seek-handle {
     position: absolute;
     top: 50%;

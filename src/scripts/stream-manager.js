@@ -107,10 +107,13 @@
                     // 1. Seek Bar
                     const seekContainer = document.createElement('div');
                     seekContainer.className = 'lbp-seek-container';
+                    const seekBuffered = document.createElement('div');
+                    seekBuffered.className = 'lbp-seek-buffered';
                     const seekProgress = document.createElement('div');
                     seekProgress.className = 'lbp-seek-progress';
                     const seekHandle = document.createElement('div');
                     seekHandle.className = 'lbp-seek-handle';
+                    seekContainer.appendChild(seekBuffered);
                     seekContainer.appendChild(seekProgress);
                     seekContainer.appendChild(seekHandle);
                     controls.appendChild(seekContainer);
@@ -193,6 +196,168 @@
                     uploadInput.style.display = 'none';
                     streamSection.appendChild(uploadInput);
 
+                    // --- Resume Sync (server-first, local fallback) ---
+                    const RESUME_MIN_SECONDS = 10;
+                    const RESUME_END_THRESHOLD = 0.95;
+                    const RESUME_HEARTBEAT_MS = 5000;
+                    const LOCAL_RESUME_PREFIX = 'lbplus:resume:';
+                    const localResumeKey = `${LOCAL_RESUME_PREFIX}${tmdbId}`;
+                    let lastSentPosition = -1;
+                    let pendingResumePosition = null;
+                    let heartbeatTimer = null;
+                    let resumeCleanupDone = false;
+
+                    const readLocalResume = () => {
+                        try {
+                            const raw = localStorage.getItem(localResumeKey);
+                            if (!raw) return null;
+                            const parsed = JSON.parse(raw);
+                            if (!parsed || typeof parsed.position !== 'number') return null;
+                            return parsed;
+                        } catch (_) {
+                            return null;
+                        }
+                    };
+
+                    const writeLocalResume = (position, duration) => {
+                        try {
+                            localStorage.setItem(localResumeKey, JSON.stringify({
+                                position,
+                                duration: Number(duration) || 0,
+                                updatedAt: Date.now()
+                            }));
+                        } catch (_) {}
+                    };
+
+                    const clearLocalResume = () => {
+                        try {
+                            localStorage.removeItem(localResumeKey);
+                        } catch (_) {}
+                    };
+
+                    const clearServerResume = async () => {
+                        const clearEndpoints = [
+                            `${C_SERVER}/watch-progress/${tmdbId}`,
+                            `${C_SERVER}/resume/${tmdbId}`
+                        ];
+                        for (const url of clearEndpoints) {
+                            try {
+                                await fetch(url, { method: 'DELETE' });
+                                return true;
+                            } catch (_) {}
+                        }
+                        return false;
+                    };
+
+                    const sendResume = async (reason = 'heartbeat') => {
+                        if (!video || !video.duration || !isFinite(video.duration)) return;
+                        const position = Math.max(0, Number(video.currentTime) || 0);
+                        const duration = Math.max(0, Number(video.duration) || 0);
+                        const isCompleted = duration > 0 && (position / duration) >= RESUME_END_THRESHOLD;
+
+                        if (reason === 'heartbeat' && Math.abs(position - lastSentPosition) < 2) return;
+
+                        if (isCompleted) {
+                            clearLocalResume();
+                            await clearServerResume();
+                            lastSentPosition = position;
+                            return;
+                        }
+
+                        if (position < RESUME_MIN_SECONDS) return;
+
+                        const payload = {
+                            tmdbId,
+                            position,
+                            duration,
+                            state: video.paused ? 'paused' : 'playing',
+                            updatedAt: Date.now()
+                        };
+
+                        const updateEndpoints = [
+                            `${C_SERVER}/watch-progress/${tmdbId}`,
+                            `${C_SERVER}/resume/${tmdbId}`
+                        ];
+
+                        let sent = false;
+                        for (const url of updateEndpoints) {
+                            try {
+                                const resp = await fetch(url, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(payload)
+                                });
+                                if (resp.ok) {
+                                    sent = true;
+                                    break;
+                                }
+                            } catch (_) {}
+                        }
+
+                        writeLocalResume(position, duration);
+                        if (sent) lastSentPosition = position;
+                    };
+
+                    const applyResumePosition = (position) => {
+                        if (!video || !video.duration || !isFinite(video.duration)) return false;
+                        if (!isFinite(position)) return false;
+                        const maxSeek = Math.max(0, video.duration - 2);
+                        const clamped = Math.min(Math.max(0, position), maxSeek);
+                        if (clamped < RESUME_MIN_SECONDS) return false;
+                        if (video.duration > 0 && (clamped / video.duration) >= RESUME_END_THRESHOLD) return false;
+                        video.currentTime = clamped;
+                        return true;
+                    };
+
+                    const tryApplyPendingResume = () => {
+                        if (pendingResumePosition == null) return;
+                        if (applyResumePosition(pendingResumePosition)) {
+                            pendingResumePosition = null;
+                        }
+                    };
+
+                    const loadResumeFromServer = async () => {
+                        const fetchEndpoints = [
+                            `${C_SERVER}/watch-progress/${tmdbId}`,
+                            `${C_SERVER}/resume/${tmdbId}`
+                        ];
+
+                        for (const url of fetchEndpoints) {
+                            try {
+                                const response = await fetch(url);
+                                if (!response.ok) continue;
+                                const data = await response.json();
+                                const serverPos = Number(
+                                    data?.position ?? data?.currentTime ?? data?.progress ?? data?.time ?? data?.resumePosition
+                                );
+                                if (isFinite(serverPos) && serverPos > 0) {
+                                    pendingResumePosition = serverPos;
+                                    return;
+                                }
+                            } catch (_) {}
+                        }
+
+                        const local = readLocalResume();
+                        if (local && isFinite(Number(local.position)) && Number(local.position) > 0) {
+                            pendingResumePosition = Number(local.position);
+                        }
+                    };
+
+                    const cleanupResumeSync = () => {
+                        if (resumeCleanupDone) return;
+                        resumeCleanupDone = true;
+                        if (heartbeatTimer) {
+                            clearInterval(heartbeatTimer);
+                            heartbeatTimer = null;
+                        }
+                        window.removeEventListener('beforeunload', onBeforeUnloadSync);
+                    };
+
+                    const onBeforeUnloadSync = () => {
+                        // Fire-and-forget before tab close/navigation.
+                        sendResume('unload');
+                    };
+
                     // --- Logic ---
                     const formatTime = (s) => {
                         if (!s || isNaN(s)) return '0:00';
@@ -208,6 +373,21 @@
                     const updateUI = () => {
                         playBtn.innerHTML = video.paused ? PLAY_SVG : PAUSE_SVG;
                         const p = (video.currentTime / video.duration) * 100 || 0;
+                        let bufferedPercent = 0;
+                        if (video.duration && video.buffered && video.buffered.length > 0) {
+                            for (let i = video.buffered.length - 1; i >= 0; i -= 1) {
+                                const start = video.buffered.start(i);
+                                const end = video.buffered.end(i);
+                                if (video.currentTime >= start && video.currentTime <= end) {
+                                    bufferedPercent = (end / video.duration) * 100;
+                                    break;
+                                }
+                                if (i === 0) {
+                                    bufferedPercent = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100;
+                                }
+                            }
+                        }
+                        seekBuffered.style.width = `${Math.min(100, Math.max(0, bufferedPercent))}%`;
                         seekProgress.style.width = p + '%';
                         seekHandle.style.left = p + '%';
                         timeDisp.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration || 0)}`;
@@ -217,7 +397,13 @@
                     video.onplay = updateUI;
                     video.onpause = updateUI;
                     video.ontimeupdate = updateUI;
-                    video.onloadedmetadata = updateUI;
+                    video.onprogress = updateUI;
+                    video.onseeking = updateUI;
+                    video.onseeked = updateUI;
+                    video.onloadedmetadata = () => {
+                        updateUI();
+                        tryApplyPendingResume();
+                    };
 
                     seekContainer.onclick = (e) => {
                         const rect = seekContainer.getBoundingClientRect();
@@ -385,10 +571,18 @@
                         hls.loadSource(hlsUrl);
                         hls.attachMedia(video);
                         hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+                        hls.on(Hls.Events.LEVEL_LOADED, () => tryApplyPendingResume());
                     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                         video.src = hlsUrl;
                         video.play().catch(() => {});
                     }
+
+                    loadResumeFromServer().then(() => tryApplyPendingResume());
+                    heartbeatTimer = setInterval(() => sendResume('heartbeat'), RESUME_HEARTBEAT_MS);
+                    video.addEventListener('pause', () => sendResume('pause'));
+                    video.addEventListener('ended', () => sendResume('ended'));
+                    video.addEventListener('seeking', () => sendResume('seek'));
+                    window.addEventListener('beforeunload', onBeforeUnloadSync);
 
                     fetch(`${C_SERVER}/subtitle/${tmdbId}`)
                         .then(r => r.json())
@@ -427,6 +621,14 @@
                             if (percentEl) percentEl.textContent = (data.percent || 0) + '%';
                         }).catch(() => {});
                     }, 1000);
+
+                    const playerRemovalObserver = new MutationObserver(() => {
+                        if (!document.getElementById('lbp-video')) {
+                            cleanupResumeSync();
+                            playerRemovalObserver.disconnect();
+                        }
+                    });
+                    playerRemovalObserver.observe(document.body, { childList: true, subtree: true });
                 });
             };
 
