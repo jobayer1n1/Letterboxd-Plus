@@ -227,43 +227,48 @@ async function checkConnection(name, template) {
   }
 
   setFeedback("Checking connection...");
-  const url = template.replaceAll("{tmdbId}", "550");
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  // Some providers may reject specific IDs, but still be reachable.
+  const probeTmdbIds = ["550", "603", "238"];
 
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      mode: "no-cors",
-      cache: "no-store",
-      signal: controller.signal
-    });
+  for (const tmdbId of probeTmdbIds) {
+    const url = template.replaceAll("{tmdbId}", tmdbId);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
 
-    clearTimeout(timer);
-    if (response && (response.type === "opaque" || response.ok)) {
-      setFeedback("Successfully connected.", "success");
-      return true;
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        mode: "no-cors",
+        cache: "no-store",
+        signal: controller.signal
+      });
+
+      clearTimeout(timer);
+
+      // For connection checks, any network-level response is considered reachable.
+      // Opaque responses are expected with no-cors.
+      if (response) {
+        setFeedback("Successfully connected.", "success");
+        return true;
+      }
+    } catch (error) {
+      clearTimeout(timer);
     }
-
-    setFeedback("Can't establish the connection.", "error");
-    return false;
-  } catch (error) {
-    clearTimeout(timer);
-    setFeedback("Can't establish the connection.", "error");
-    return false;
   }
+
+  setFeedback("Can't establish the connection.", "error");
+  return false;
 }
 
 async function fetchDefaultServers() {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
-
   try {
     const candidates = [embedServersJsonRawUrl, embedServersJsonBlobUrl];
     let lastError = null;
     let payloadText = null;
 
     for (const url of candidates) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10000);
       try {
         const response = await fetch(url, {
           method: "GET",
@@ -278,8 +283,10 @@ async function fetchDefaultServers() {
         }
 
         payloadText = await response.text();
+        clearTimeout(timer);
         break;
       } catch (error) {
+        clearTimeout(timer);
         lastError = error;
       }
     }
@@ -294,7 +301,7 @@ async function fetchDefaultServers() {
     }
 
     const payload = parseJsonLenient(payloadText);
-    const list = Array.isArray(payload) ? payload : [];
+    const list = Array.isArray(payload) ? payload : Array.isArray(payload?.servers) ? payload.servers : [];
     const defaults = [];
 
     list.forEach((server) => {
@@ -310,8 +317,6 @@ async function fetchDefaultServers() {
   } catch (error) {
     console.error("Letterboxd+: fetchDefaultServers failed", error);
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -553,30 +558,20 @@ refreshServersBtn.addEventListener("click", async () => {
 
     const result = await storageGet([STORAGE_SERVERS_KEY]);
     const existing = sanitizeServers(result[STORAGE_SERVERS_KEY]);
-    const storedDefaults = existing.filter((server) => server.isDefault);
     const customServers = existing.filter((server) => !server.isDefault);
-
-    const { upToDate, defaultsToAdd, remainingRetrieved } = diffDefaults(
-      storedDefaults,
-      fetchedDefaults
+    const defaultByTemplate = new Set(fetchedDefaults.map((server) => normalizeTemplate(server.template)));
+    const filteredCustom = customServers.filter(
+      (server) => !defaultByTemplate.has(normalizeTemplate(server.template))
     );
 
-    if (upToDate) {
-      setDefaultsFeedback("Up to date.", "success");
-      return;
-    }
-
-    const newDefaults = sanitizeServers([...defaultsToAdd, ...remainingRetrieved]).map(
-      (server) => ({ ...server, isDefault: true })
-    );
-    const nextServers = sanitizeServers([...newDefaults, ...customServers]).map((server) => ({
+    const nextServers = sanitizeServers([...fetchedDefaults, ...filteredCustom]).map((server) => ({
       ...server,
       isDefault: Boolean(server.isDefault)
     }));
 
     await storageSet({ [STORAGE_SERVERS_KEY]: nextServers });
     renderServerList(nextServers);
-    setDefaultsFeedback("Successfully set.", "success");
+    setDefaultsFeedback(`Successfully refreshed ${fetchedDefaults.length} default servers.`, "success");
     sendMessageToActiveTab({ type: "LETTERBOXD_PLUS_SERVERS_UPDATED" });
   } catch (error) {
     const msg = error && error.message ? `Something went wrong. (${error.message})` : "Something went wrong.";
