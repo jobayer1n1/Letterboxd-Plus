@@ -35,7 +35,7 @@
     }
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://raw.githubusercontent.com https://github.com https://api.github.com https:"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://raw.githubusercontent.com https://github.com https://api.github.com https: http://localhost:6769"
   },
   "web_accessible_resources": [
     {
