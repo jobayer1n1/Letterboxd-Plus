@@ -14,7 +14,6 @@
         "*://*.letterboxd.com/film/*"
       ],
       "js": [
-        "scripts/server-defaults.js",
         "scripts/vendor/hls.min.js",
         "scripts/utils.js",
         "scripts/stream-manager.js",

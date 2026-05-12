@@ -8,27 +8,29 @@
     };
 
     globalThis.LBPlus.loadServerDefinitions = function (tmdbId, DEFAULT_SERVERS, callback) {
-        chrome.storage.local.get({ [STORAGE_SERVERS_KEY]: DEFAULT_SERVERS }, (result) => {
+        chrome.storage.local.get({ [STORAGE_SERVERS_KEY]: [] }, (result) => {
             const saved = Array.isArray(result[STORAGE_SERVERS_KEY]) ? result[STORAGE_SERVERS_KEY] : [];
-            const merged = [];
+            const source = saved;
+            const unique = [];
             const seen = new Set();
-            const pushUnique = (server) => {
+
+            source.forEach((server) => {
                 if (!server || !server.name || !server.template) return;
-                const normalized = globalThis.LBPlus.normalizeTemplate(server.template);
+                const name = String(server.name).trim();
+                const template = String(server.template).trim();
+                if (!name || !template) return;
+                const normalized = globalThis.LBPlus.normalizeTemplate(template);
                 if (!normalized || seen.has(normalized)) return;
-                merged.push({ name: String(server.name).trim(), template: String(server.template).trim() });
+                unique.push({ name, template });
                 seen.add(normalized);
-            };
+            });
 
-            DEFAULT_SERVERS.forEach(pushUnique);
-            saved.forEach(pushUnique);
-
-            const servers = merged
-                .map(server => ({
+            const servers = unique
+                .map((server) => ({
                     name: server.name,
                     src: server.template.replaceAll('{tmdbId}', tmdbId)
                 }))
-                .filter(server => server.name && server.src);
+                .filter((server) => server.name && server.src);
 
             callback(servers);
         });

@@ -618,7 +618,8 @@ latestReleaseBtn.addEventListener("click", () => {
   chrome.tabs.create({ url: latestReleasePageUrl });
 });
 
-// Cache Servers Logic
+
+
 const cacheServersToggleBtn = document.getElementById("cacheServersToggleBtn");
 const cacheServersBody = document.getElementById("cacheServersBody");
 const addCacheServerBtn = document.getElementById("addCacheServerBtn");

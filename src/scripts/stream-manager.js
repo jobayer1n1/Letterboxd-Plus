@@ -514,8 +514,7 @@
 
         // The server selector and loadServer logic is only for 'no-cache' mode now
         if (mode === 'no-cache') {
-            const DEFAULT_SERVERS = globalThis.LETTERBOXD_PLUS_DEFAULT_SERVERS || [];
-            globalThis.LBPlus.loadServerDefinitions(tmdbId, DEFAULT_SERVERS, (servers) => {
+            globalThis.LBPlus.loadServerDefinitions(tmdbId, [], (servers) => {
                 servers.forEach((server, index) => {
                     const btn = document.createElement('button');
                     btn.className = 'server-btn' + (index === 0 ? ' active' : '');
