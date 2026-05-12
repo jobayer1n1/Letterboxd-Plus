@@ -15,11 +15,6 @@
     "isDefault": true
   },
   {
-    "name": "VidSrc.xyz",
-    "template": "https://vidsrc.xyz/embed/movie?tmdb={tmdbId}",
-    "isDefault": true
-  },
-  {
     "name": "111movies",
     "template": "https://111movies.net/movie/{tmdbId}",
     "isDefault": true
@@ -34,4 +29,9 @@
     "template": "https://zxcstream.xyz/embed/movie/{tmdbId}",
     "isDefault": true
   },
+  {
+    "name": "CineVibe",
+    "template": "https://cinevibe.to/watch/movie/{tmdbId}",
+    "isDefault": true
+  }
 ]
