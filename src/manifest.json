@@ -34,6 +34,9 @@
       }
     }
   },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://raw.githubusercontent.com https://github.com https://api.github.com https:"
+  },
   "web_accessible_resources": [
     {
       "resources": ["icon/icon16.png"],
