@@ -6,6 +6,7 @@
     const FULL_SVG = `<svg viewBox="0 0 24 24"><path d="M7,14H5V19H10V17H7V14M5,10H7V7H10V5H5V10M17,17H14V19H19V14H17V17M14,5V7H17V10H19V5H14Z"/></svg>`;
     const MIN_SVG = `<svg viewBox="0 0 24 24"><path d="M14,14H19V16H16V19H14V14M5,16H10V14H5V16M19,8H14V5H16V8H19V10M10,8H5V10H8V5H10V8Z"/></svg>`;
     const CC_SVG = `<svg viewBox="0 0 24 24"><path d="M19,4H5C3.89,4 3,4.9 3,6v12c0,1.1 0.89,2 2,2h14c1.1,0 2,-0.9 2,-2V6C21,4.9 20.1,4 19,4M11,11H8.5v0.5H7v-3h1.5V9H11V11z M17,11h-2.5v0.5H13v-3h1.5V9H17V11z"/></svg>`;
+    const COPY_SVG = `<svg viewBox="0 0 24 24"><path d="M19,2H9C7.9,2 7,2.9 7,4v14c0,1.1 0.9,2 2,2h10c1.1,0 2,-0.9 2,-2V4C21,2.9 20.1,2 19,2M19,16H9V4h10V16M5,6H3v14c0,1.1 0.9,2 2,2h12v-2H5V6Z"/></svg>`;
     globalThis.LBPlus = globalThis.LBPlus || {};
 
     globalThis.LBPlus.createStreamSection = function (tmdbId, mode = 'no-cache', title = '') {
@@ -182,10 +183,27 @@
                     ccBtn.innerHTML = CC_SVG;
                     ccBtn.title = 'Subtitles';
 
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = 'lbp-control-btn';
+                    copyBtn.innerHTML = COPY_SVG;
+                    copyBtn.title = 'Copy stream link';
+                    copyBtn.onclick = () => {
+                        navigator.clipboard.writeText(hlsUrl).then(() => {
+                            const originalTitle = copyBtn.title;
+                            copyBtn.title = 'Copied!';
+                            setTimeout(() => {
+                                copyBtn.title = originalTitle;
+                            }, 2000);
+                        }).catch(err => {
+                            console.error('Failed to copy:', err);
+                        });
+                    };
+
                     const fullBtn = document.createElement('button');
                     fullBtn.className = 'lbp-control-btn';
                     fullBtn.innerHTML = FULL_SVG;
 
+                    rightSide.appendChild(copyBtn);
                     rightSide.appendChild(ccBtn);
                     rightSide.appendChild(volContainer);
                     rightSide.appendChild(fullBtn);
