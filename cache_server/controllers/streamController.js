@@ -1,6 +1,5 @@
 const fs = require("fs-extra");
 const path = require("path");
-const os = require("os");
 const { Parser } = require("m3u8-parser");
 const { Readable } = require("stream");
 const { PORT, DEFAULT_HEADERS, BASE_DIR } = require("../config");
@@ -40,22 +39,6 @@ function normalizeProgressPayload(tmdbId, payload) {
   };
 }
 
-function getLocalIp() {
-  const interfaces = os.networkInterfaces();
-  const ips = [];
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === "IPv4" && !iface.internal) {
-        ips.push(iface.address);
-      }
-    }
-  }
-  // Strictly prioritize 192.168.x.x, then 172.x.x.x, then 10.x.x.x
-  const preferred = ips.find(ip => ip.startsWith("192.168.")) 
-                 || ips.find(ip => ip.startsWith("172."))
-                 || ips.find(ip => ip.startsWith("10."));
-  return preferred || ips[0] || "127.0.0.1";
-}
 
 const colors = {
   reset: "\x1b[0m",
@@ -255,30 +238,43 @@ async function loadStream(req, res) {
 
   startBackgroundDownload(tmdbId);
 
-  const streamUrl = `${baseUrl}/stream/${tmdbId}.m3u8`;
-  const localIp = getLocalIp();
-  const networkUrl = streamUrl.replace("localhost", localIp).replace("127.0.0.1", localIp);
-  
-  console.log(`\n${colors.magenta}${"━".repeat(60)}${colors.reset}`);
-  console.log(`${colors.bright}${colors.cyan}🎬  STREAM READY${colors.reset}`);
-  if (title) console.log(`${colors.bright}${colors.yellow}📺  Title:   ${title}${colors.reset}`);
-  console.log(`${colors.bright}${colors.yellow}🆔  TMDB ID: ${tmdbId}${colors.reset}`);
-  console.log(`${colors.bright}${colors.blue}🔗  URL:      ${colors.reset}${networkUrl}`);
-  console.log(`${colors.magenta}${"━".repeat(60)}${colors.reset}\n`);
+  const rawIp = req.ip || req.socket?.remoteAddress || "unknown";
+  const requesterIp = rawIp.replace(/^::ffff:/, "");
+  const cacheLabel = title && title !== "Unknown Movie" ? title : `TMDB ${tmdbId}`;
+  console.log(`${colors.cyan}[START CACHE]${colors.reset} : ${colors.bright}${requesterIp}${colors.reset}  —  ${colors.yellow}${cacheLabel}${colors.reset}`);
 
   res.json({
     message: "Caching started",
-    streamUrl
   });
 }
 
 async function serveM3u8(req, res) {
   const { tmdbId } = req.params;
-  const state = activeStreams[tmdbId];
   const baseUrl = getBaseUrl(req);
+  let state = activeStreams[tmdbId];
 
+  // If not in memory, try loading from disk so copied links always work
+  if (!state) {
+    const mPath = metaPath(tmdbId);
+    if (!(await fs.pathExists(mPath))) {
+      return res.status(404).send("Stream not found");
+    }
+    try {
+      const meta = await fs.readJson(mPath);
+      // Re-verify which segments are on disk
+      const dir = getVideoDir(tmdbId);
+      for (const seg of meta.segments) {
+        seg.downloaded = await fs.pathExists(path.join(dir, seg.file));
+      }
+      activeStreams[tmdbId] = { meta, headers: {}, totalDownloaded: 0, downloading: false, speed: 0, lastBytes: 0, startTime: Date.now() };
+      state = activeStreams[tmdbId];
+      startBackgroundDownload(tmdbId);
+    } catch (e) {
+      return res.status(500).send("Failed to load stream metadata");
+    }
+  }
 
-  if (!state) return res.status(404).send("Not loaded");
+  // No console log here — serveM3u8 is polled frequently by the player
 
   const targetDuration = Math.ceil(state.meta.segments.reduce((max, s) => Math.max(max, s.duration), 0)) || 10;
   let m3u8 = `#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:${targetDuration}\n#EXT-X-MEDIA-SEQUENCE:0\n`;
@@ -289,7 +285,7 @@ async function serveM3u8(req, res) {
     });
   }
 
-  state.meta.segments.forEach((seg, i) => {
+  state.meta.segments.forEach((seg) => {
     m3u8 += `#EXTINF:${seg.duration.toFixed(3)},\n${baseUrl}/seg/${tmdbId}/${seg.file}\n`;
   });
 
