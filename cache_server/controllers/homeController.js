@@ -286,8 +286,13 @@ async function serveIndex(req, res) {
 </head>
 <body>
 <div class="container">
-    <h1>🚀 Cache Server</h1>
-    <p class="subtitle">${list.length} movie${list.length !== 1 ? 's' : ''} cached &nbsp;·&nbsp; ${getLocalIp()}:${PORT}</p>
+    <h1>🎬 Cache Server</h1>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 32px;">
+        <p class="subtitle" style="margin-bottom: 0;">${list.length} movie${list.length !== 1 ? 's' : ''} cached &nbsp;·&nbsp; ${getLocalIp()}:${PORT}</p>
+        ${list.length > 0 ? `<button class="btn btn-delete" style="padding: 6px 14px; font-size: 0.85rem;" onclick="clearAllCache()" title="Clear all cached movies">
+            🗑️ Clear All
+        </button>` : ''}
+    </div>
 
     ${list.length > 0 ? `
     <div class="search-wrap">
@@ -403,6 +408,26 @@ async function serveIndex(req, res) {
                 }
             })
             .catch(() => alert('Delete request failed.'));
+    }
+
+    // Clear All
+    function clearAllCache() {
+        if (!confirm('Are you sure you want to delete ALL cached movies? This cannot be undone.')) return;
+        fetch('/cache', { method: 'DELETE' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const grid = document.getElementById('grid');
+                    if (grid) grid.innerHTML = '';
+                    const searchWrap = document.querySelector('.search-wrap');
+                    if (searchWrap) searchWrap.style.display = 'none';
+                    showToast('🗑 All caches deleted');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    alert('Clear all failed: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(() => alert('Clear all request failed.'));
     }
 </script>
 </body>

@@ -16,7 +16,11 @@ async function updateProgress(tmdbId) {
     speed: state.speed.toFixed(2) + " KB/s"
   };
 
-  await fs.writeJson(progressPath(tmdbId), progress);
+  try {
+    await fs.writeJson(progressPath(tmdbId), progress);
+  } catch (err) {
+    // Ignore errors here. Directory might have been deleted.
+  }
 }
 
 function startSpeedCalculationLoop() {

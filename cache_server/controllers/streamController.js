@@ -245,6 +245,7 @@ async function loadStream(req, res) {
 
   res.json({
     message: "Caching started",
+    streamUrl: `${baseUrl}/stream/${tmdbId}.m3u8`
   });
 }
 
@@ -445,11 +446,12 @@ async function getCacheList(req, res) {
 async function deleteCache(req, res) {
   const { tmdbId } = req.params;
   try {
-    const folderPath = path.join(BASE_DIR, tmdbId);
-    await fs.remove(folderPath);
     if (activeStreams[tmdbId]) {
+      activeStreams[tmdbId].downloading = false;
       delete activeStreams[tmdbId];
     }
+    const folderPath = path.join(BASE_DIR, tmdbId);
+    await fs.remove(folderPath);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -458,8 +460,11 @@ async function deleteCache(req, res) {
 
 async function clearAllCache(req, res) {
   try {
+    Object.keys(activeStreams).forEach(k => {
+      activeStreams[k].downloading = false;
+      delete activeStreams[k];
+    });
     await fs.emptyDir(BASE_DIR);
-    Object.keys(activeStreams).forEach(k => delete activeStreams[k]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
