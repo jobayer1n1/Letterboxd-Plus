@@ -79,6 +79,45 @@
 
         const body = document.body;
         const tmdbId = body.getAttribute('data-tmdb-id');
+        
+        let movieTitle = "Unknown Movie";
+        
+        // 1. Try to get the year first
+        const yearEl = document.querySelector('.releasedate a') || 
+                       document.querySelector('.releasedate') ||
+                       document.querySelector('.releaseyear a') || 
+                       document.querySelector('small.number a') ||
+                       document.querySelector('.number a') ||
+                       document.querySelector('h1.headline-1 + small.number a');
+        const movieYear = yearEl ? yearEl.textContent.trim() : "";
+
+        // 2. Try Open Graph title
+        const ogTitle = document.querySelector('meta[property="og:title"]');
+        if (ogTitle && ogTitle.content) {
+            movieTitle = ogTitle.content.trim();
+        } else {
+            // 3. Fallback to extracting Name
+            const nameEl = document.querySelector('h1.headline-1 span.name') || 
+                           document.querySelector('h1.headline-1') ||
+                           document.querySelector('.js-widont.prettify');
+            
+            if (nameEl) {
+                movieTitle = nameEl.textContent.trim().replace(/\s+/g, ' ');
+            } else if (document.title) {
+                movieTitle = document.title.split(' directed by')[0].replace('\u200E', '').trim();
+            }
+        }
+
+        // 4. Ensure year is in the title if we found it
+        if (movieTitle && movieYear && movieTitle !== "Unknown Movie") {
+            const yearPattern = new RegExp(`\\(${movieYear}\\)`);
+            if (!yearPattern.test(movieTitle)) {
+                // If it has NO year at all, append it
+                if (!/\(\d{4}\)/.test(movieTitle)) {
+                    movieTitle = `${movieTitle} (${movieYear})`;
+                }
+            }
+        }
 
         if (!tmdbId) {
             console.log("Letterboxd+: No TMDB ID found on this page.");
@@ -132,7 +171,7 @@
         optionsSpan.appendChild(extendedLink);
         btnContainer.appendChild(optionsSpan);
 
-        const cacheBtnContainer = globalThis.LBPlus.createServiceButton('letterboxd-plus-cache-item', 'Letterboxd+', 'CACHE', tmdbId, true);
+        const cacheBtnContainer = globalThis.LBPlus.createServiceButton('letterboxd-plus-cache-item', 'Letterboxd+', 'CACHE', tmdbId, movieTitle, true);
 
         function updateCacheButtonVisibility(online) {
             cacheBtnContainer.style.display = online ? '' : 'none';
@@ -187,7 +226,7 @@
 
         function handlePlayClick(e) {
             e.preventDefault();
-            createStreamSection(tmdbId);
+            createStreamSection(tmdbId, movieTitle);
         }
 
         link.addEventListener('click', handlePlayClick);
@@ -195,7 +234,7 @@
 
     }
 
-    function createStreamSection(tmdbId) {
+    function createStreamSection(tmdbId, title) {
         if (!scriptsEnabled) return;
         if (document.getElementById('letterboxd-plus-stream-section')) return;
 
@@ -336,4 +375,3 @@
         console.log(`Letterboxd+: Subtitle Detected! Label: ${message.label}, URL: ${message.url}`);
     });
 })();
-

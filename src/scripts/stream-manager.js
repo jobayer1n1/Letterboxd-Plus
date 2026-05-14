@@ -8,7 +8,7 @@
     const CC_SVG = `<svg viewBox="0 0 24 24"><path d="M19,4H5C3.89,4 3,4.9 3,6v12c0,1.1 0.89,2 2,2h14c1.1,0 2,-0.9 2,-2V6C21,4.9 20.1,4 19,4M11,11H8.5v0.5H7v-3h1.5V9H11V11z M17,11h-2.5v0.5H13v-3h1.5V9H17V11z"/></svg>`;
     globalThis.LBPlus = globalThis.LBPlus || {};
 
-    globalThis.LBPlus.createStreamSection = function (tmdbId, mode = 'no-cache') {
+    globalThis.LBPlus.createStreamSection = function (tmdbId, mode = 'no-cache', title = '') {
         const existing = document.getElementById('letterboxd-plus-stream-section');
         if (existing) existing.remove(); // Re-inject if mode changed
 
@@ -78,6 +78,7 @@
 
                 const loadPayload = { 
                     tmdbId, 
+                    title,
                     m3u8Url: capturedM3u8,
                     subtitle_link: capturedSub, // Unified subtitle sync
                     headers: {

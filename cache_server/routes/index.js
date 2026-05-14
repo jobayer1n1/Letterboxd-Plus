@@ -4,7 +4,12 @@ const streamController = require("../controllers/streamController");
 const subtitleController = require("../controllers/subtitleController");
 
 // Stream & Cache Routes
+// Home Routes
+const homeRoutes = require("./home");
+router.use("/", homeRoutes);
+
 router.post("/load", streamController.loadStream);
+
 router.get("/stream/:tmdbId.m3u8", streamController.serveM3u8);
 router.get("/key/:tmdbId/:keyId", streamController.serveKey);
 router.get("/seg/:tmdbId/:id.ts", streamController.serveSegment);

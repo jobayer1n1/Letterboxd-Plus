@@ -1,3 +1,4 @@
+const os = require("os");
 const express = require("express");
 const fs = require("fs-extra");
 const { PORT, BASE_DIR } = require("./config");
@@ -6,6 +7,19 @@ const { startSpeedCalculationLoop } = require("./services/progress");
 
 // Ensure base dir exists
 fs.ensureDirSync(BASE_DIR);
+
+const { getLocalIp } = require("./utils/network");
+const LOCAL_IP = getLocalIp();
+
+// ANSI Colors
+const colors = {
+  reset: "\x1b[0m",
+  bright: "\x1b[1m",
+  green: "\x1b[32m",
+  cyan: "\x1b[36m",
+  yellow: "\x1b[33m",
+  magenta: "\x1b[35m"
+};
 
 const app = express();
 
@@ -28,5 +42,8 @@ startSpeedCalculationLoop();
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
-  console.log("Cache server running on http://localhost:" + PORT);
+  console.log(`\n${colors.cyan}${"=".repeat(50)}${colors.reset}`);
+  console.log(`${colors.bright}${colors.green}🚀 Cache Server is running!${colors.reset}`);
+  console.log(`${colors.yellow}🌐 URL:  ${colors.reset}http://${LOCAL_IP}:${PORT}`);
+  console.log(`${colors.cyan}${"=".repeat(50)}${colors.reset}\n`);
 });

@@ -1,7 +1,7 @@
 (function () {
     globalThis.LBPlus = globalThis.LBPlus || {};
 
-    globalThis.LBPlus.createServiceButton = function (id, labelText, modeText, tmdbId, isHidden = false) {
+    globalThis.LBPlus.createServiceButton = function (id, labelText, modeText, tmdbId, movieTitle, isHidden = false) {
         const p = document.createElement('p');
         p.id = id;
         p.className = 'service -letterboxd-plus';
@@ -47,7 +47,7 @@
         const handleButtonClick = (e) => {
             e.preventDefault();
             const mode = modeText.toLowerCase().includes('no cache') ? 'no-cache' : 'cache';
-            globalThis.LBPlus.createStreamSection(tmdbId, mode);
+            globalThis.LBPlus.createStreamSection(tmdbId, mode, movieTitle);
         };
 
         labelLink.addEventListener('click', handleButtonClick);

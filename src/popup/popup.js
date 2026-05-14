@@ -665,8 +665,6 @@ latestReleaseBtn.addEventListener("click", () => {
   chrome.tabs.create({ url: latestReleasePageUrl });
 });
 
-
-
 const cacheServersToggleBtn = document.getElementById("cacheServersToggleBtn");
 const cacheServersBody = document.getElementById("cacheServersBody");
 const addCacheServerBtn = document.getElementById("addCacheServerBtn");
@@ -680,6 +678,8 @@ const cacheServerList = document.getElementById("cacheServerList");
 const openSubtitlesApiKeyInput = document.getElementById("openSubtitlesApiKey");
 const saveOpenSubtitlesKeyBtn = document.getElementById("saveOpenSubtitlesKeyBtn");
 const openSubtitlesKeyStatus = document.getElementById("openSubtitlesKeyStatus");
+const openSubtitlesToggleBtn = document.getElementById("openSubtitlesToggleBtn");
+const openSubtitlesBody = document.getElementById("openSubtitlesBody");
 
 const cacheFoldersSection = document.getElementById("cacheFoldersSection");
 const cacheFoldersList = document.getElementById("cacheFoldersList");
@@ -766,8 +766,8 @@ async function renderCacheFolders(serverUrl) {
        row.innerHTML = `
          <div class="server-row" style="align-items:center;">
            <div style="flex:1;">
-             <p class="server-name" style="margin:0;">TMDB: ${c.tmdbId}</p>
-             <p class="server-link" style="margin:0; margin-top:3px;">${c.percent}% Cached (${c.sizeFormatted})</p>
+             <p class="server-name" style="margin:0;">🎬 ${c.title}</p>
+             <p class="server-link" style="margin:0; margin-top:3px;">TMDB: ${c.tmdbId} | ${c.percent}% Cached (${c.sizeFormatted})</p>
            </div>
            <button class="server-delete delete-folder-btn" style="padding:4px 8px" data-tmdb="${c.tmdbId}">Delete</button>
          </div>
@@ -789,90 +789,89 @@ async function renderCacheServerList() {
       let isSelectedOnline = res.cacheServerOnline;
       cacheServerList.innerHTML = "";
 
-    servers.forEach(srv => {
-      const isDefault = srv === defaultCacheServer;
-      const isSelected = srv === selected;
-      const item = document.createElement("div");
-      item.className = `server-item ${isSelected ? "default" : "custom"}`;
-      
-      let statusText = '';
-      if (isSelected) {
-          statusText = isSelectedOnline 
-              ? '<p class="server-link" style="margin:0; margin-top:3px; color:#66d08a;">Active (Online)</p>'
-              : '<p class="server-link" style="margin:0; margin-top:3px; color:#ff7f7f;">Active (Offline)</p>';
-      }
+      servers.forEach(srv => {
+        const isDefault = srv === defaultCacheServer;
+        const isSelected = srv === selected;
+        const item = document.createElement("div");
+        item.className = `server-item ${isSelected ? "default" : "custom"}`;
+        
+        let statusText = '';
+        if (isSelected) {
+            statusText = isSelectedOnline 
+                ? '<p class="server-link" style="margin:0; margin-top:3px; color:#66d08a;">Active (Online)</p>'
+                : '<p class="server-link" style="margin:0; margin-top:3px; color:#ff7f7f;">Active (Offline)</p>';
+        }
 
-      item.innerHTML = `
-        <div class="server-row" style="align-items:center;">
-          <div style="flex:1;">
-            <p class="server-name" style="margin:0;">${srv}</p>
-            ${statusText}
+        item.innerHTML = `
+          <div class="server-row" style="align-items:center;">
+            <div style="flex:1;">
+              <p class="server-name" style="margin:0;">${srv}</p>
+              ${statusText}
+            </div>
           </div>
-        </div>
-      `;
-      
-      const row = item.querySelector('.server-row');
-      
-      if (!isSelected) {
-        const selBtn = document.createElement("button");
-        selBtn.className = "btn secondary";
-        selBtn.textContent = "Select";
-        selBtn.onclick = async () => {
-          selBtn.textContent = "Checking...";
-          try {
-            const controller = new AbortController();
-            const t = setTimeout(()=>controller.abort(), 2000);
-            const res = await fetch(`${srv}/status`, { signal: controller.signal });
-            clearTimeout(t);
-            const data = await res.json();
-            if (data && data.safeword === 6769) {
-               chrome.storage.local.set({ 
-                 [STORAGE_SELECTED_CACHE]: srv,
-                 cacheServerOnline: true
-               }, () => {
-                  chrome.runtime.sendMessage({ type: 'FORCE_HEALTH_CHECK' }).catch(()=>{});
-                  renderCacheServerList();
-                  renderCacheFolders(srv);
-               });
-            } else {
-               alert("Server not online or invalid!");
-               selBtn.textContent = "Select";
+        `;
+        
+        const row = item.querySelector('.server-row');
+        
+        if (!isSelected) {
+          const selBtn = document.createElement("button");
+          selBtn.className = "btn secondary";
+          selBtn.textContent = "Select";
+          selBtn.onclick = async () => {
+            selBtn.textContent = "Checking...";
+            try {
+              const controller = new AbortController();
+              const t = setTimeout(()=>controller.abort(), 2000);
+              const res = await fetch(`${srv}/status`, { signal: controller.signal });
+              clearTimeout(t);
+              const data = await res.json();
+              if (data && data.safeword === 6769) {
+                 chrome.storage.local.set({ 
+                   [STORAGE_SELECTED_CACHE]: srv,
+                   cacheServerOnline: true
+                 }, () => {
+                    chrome.runtime.sendMessage({ type: 'FORCE_HEALTH_CHECK' }).catch(()=>{});
+                    renderCacheServerList();
+                    renderCacheFolders(srv);
+                 });
+              } else {
+                 alert("Server not online or invalid!");
+                 selBtn.textContent = "Select";
+              }
+            } catch(e) {
+              alert("Server not online!");
+              selBtn.textContent = "Select";
             }
-          } catch(e) {
-            alert("Server not online!");
-            selBtn.textContent = "Select";
-          }
-        };
-        row.appendChild(selBtn);
-      }
+          };
+          row.appendChild(selBtn);
+        }
+        
+        if (!isDefault && !isSelected) {
+          const delBtn = document.createElement("button");
+          delBtn.className = "server-delete";
+          delBtn.textContent = "Delete";
+          delBtn.style.marginLeft = "4px";
+          delBtn.onclick = () => {
+            const newList = servers.filter(s => s !== srv);
+            let newSelected = selected === srv ? defaultCacheServer : selected;
+            chrome.storage.local.set({ [STORAGE_CACHE_SERVERS]: newList, [STORAGE_SELECTED_CACHE]: newSelected }, () => {
+               renderCacheServerList();
+               if (selected === srv) renderCacheFolders(newSelected);
+            });
+          };
+          row.appendChild(delBtn);
+        }
+        
+        cacheServerList.appendChild(item);
+      });
       
-      if (!isDefault && !isSelected) {
-        const delBtn = document.createElement("button");
-        delBtn.className = "server-delete";
-        delBtn.textContent = "Delete";
-        delBtn.style.marginLeft = "4px";
-        delBtn.onclick = () => {
-          const newList = servers.filter(s => s !== srv);
-          let newSelected = selected === srv ? defaultCacheServer : selected;
-          chrome.storage.local.set({ [STORAGE_CACHE_SERVERS]: newList, [STORAGE_SELECTED_CACHE]: newSelected }, () => {
-             renderCacheServerList();
-             if (selected === srv) renderCacheFolders(newSelected);
-          });
-        };
-        row.appendChild(delBtn);
+      if (!isSelectedOnline) {
+         cacheFoldersSection.classList.add("hidden");
+      } else {
+         renderCacheFolders(selected);
       }
-      
-      cacheServerList.appendChild(item);
+      loadOpenSubtitlesKeyStatus(selected);
     });
-    
-    // Manage cache folders section visibility dynamically
-    if (!isSelectedOnline) {
-       cacheFoldersSection.classList.add("hidden");
-    } else {
-       renderCacheFolders(selected);
-    }
-    loadOpenSubtitlesKeyStatus(selected);
-  });
   });
 }
 
@@ -976,11 +975,14 @@ clearAllCacheBtn.onclick = async () => {
   });
 };
 
-// --- NEW CACHE FOLDERS TOGGLE LOGIC ---
 cacheFoldersToggleBtn.onclick = () => {
   const hidden = cacheFoldersBody.classList.toggle("hidden");
   cacheFoldersToggleBtn.setAttribute("aria-expanded", String(!hidden));
 };
-// --------------------------------------
+
+openSubtitlesToggleBtn.onclick = () => {
+  const hidden = openSubtitlesBody.classList.toggle("hidden");
+  openSubtitlesToggleBtn.setAttribute("aria-expanded", String(!hidden));
+};
 
 renderCacheServerList();

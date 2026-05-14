@@ -1,5 +1,6 @@
 const fs = require("fs-extra");
 const path = require("path");
+const os = require("os");
 const { Parser } = require("m3u8-parser");
 const { Readable } = require("stream");
 const { PORT, DEFAULT_HEADERS, BASE_DIR } = require("../config");
@@ -39,9 +40,36 @@ function normalizeProgressPayload(tmdbId, payload) {
   };
 }
 
+function getLocalIp() {
+  const interfaces = os.networkInterfaces();
+  const ips = [];
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === "IPv4" && !iface.internal) {
+        ips.push(iface.address);
+      }
+    }
+  }
+  // Strictly prioritize 192.168.x.x, then 172.x.x.x, then 10.x.x.x
+  const preferred = ips.find(ip => ip.startsWith("192.168.")) 
+                 || ips.find(ip => ip.startsWith("172."))
+                 || ips.find(ip => ip.startsWith("10."));
+  return preferred || ips[0] || "127.0.0.1";
+}
+
+const colors = {
+  reset: "\x1b[0m",
+  bright: "\x1b[1m",
+  green: "\x1b[32m",
+  cyan: "\x1b[36m",
+  yellow: "\x1b[33m",
+  magenta: "\x1b[35m",
+  blue: "\x1b[34m"
+};
+
 
 async function loadStream(req, res) {
-  let { tmdbId, m3u8Url, m3u8, subtitle_link } = req.body;
+  let { tmdbId, m3u8Url, m3u8, subtitle_link, title } = req.body;
   let headers = { ...DEFAULT_HEADERS, ...(req.body.headers || {}) };
   const baseUrl = getBaseUrl(req);
 
@@ -50,7 +78,7 @@ async function loadStream(req, res) {
   }
 
   // 1. Handle Subtitle First
-  console.log(`[INFO] [${tmdbId}] Processing Subtitles...`);
+  console.log(`${colors.cyan}[INFO] [${tmdbId}] Processing Subtitles...${colors.reset}`);
   if (subtitle_link) {
     try {
         const subDir = getSubtitleDir(tmdbId);
@@ -60,7 +88,7 @@ async function loadStream(req, res) {
         const filePath = path.join(subDir, fileName);
 
         if (!(await fs.pathExists(filePath))) {
-            console.log(`[INFO] [${tmdbId}] Downloading priority subtitle: ${subtitle_link}`);
+            console.log(`${colors.yellow}[INFO] [${tmdbId}] Downloading priority subtitle: ${subtitle_link}${colors.reset}`);
             const resp = await fetch(subtitle_link, { headers });
             if (resp.ok) {
                 const buffer = Buffer.from(await resp.arrayBuffer());
@@ -68,7 +96,7 @@ async function loadStream(req, res) {
             }
         }
     } catch(e) {
-        console.error(`[ERROR] [${tmdbId}] Priority subtitle failure:`, e.message);
+        console.error(`${colors.magenta}[ERROR] [${tmdbId}] Priority subtitle failure:${colors.reset}`, e.message);
     }
   }
 
@@ -94,6 +122,26 @@ async function loadStream(req, res) {
     activeStreams[tmdbId].headers = headers;
   } else if (await fs.pathExists(metaPath(tmdbId))) {
     meta = await fs.readJson(metaPath(tmdbId));
+    
+    // Update title if missing, was "Unknown Movie", or if the new title has a year and the old one doesn't
+    const hasYear = (t) => /\(\d{4}\)/.test(t);
+    const oldTitle = meta.title || "Unknown Movie";
+    const newTitle = (title && title !== "Unknown Movie") ? title : null;
+
+    if (newTitle && newTitle !== oldTitle) {
+        let shouldUpdate = false;
+        if (oldTitle === "Unknown Movie") {
+            shouldUpdate = true;
+        } else if (hasYear(newTitle) && !hasYear(oldTitle)) {
+            shouldUpdate = true;
+        }
+
+        if (shouldUpdate) {
+            console.log(`[INFO] [${tmdbId}] Updating movie title: "${oldTitle}" -> "${newTitle}"`);
+            meta.title = newTitle;
+            await fs.writeJson(metaPath(tmdbId), meta);
+        }
+    }
     // Re-verify segments on disk
     for (let seg of meta.segments) {
       const filePath = path.join(dir, seg.file);
@@ -108,7 +156,7 @@ async function loadStream(req, res) {
   }
 
   if (!meta) {
-    console.log(`[INFO] [${tmdbId}] Starting fresh cache`);
+    console.log(`${colors.green}[INFO] [${tmdbId}] Starting fresh cache${colors.reset}`);
     
     if (m3u8Url && !m3u8) {
       try {
@@ -121,7 +169,7 @@ async function loadStream(req, res) {
     }
 
     if (m3u8 && m3u8.includes("#EXT-X-STREAM-INF")) {
-      console.log(`[INFO] [${tmdbId}] Master playlist detected, picking best variant...`);
+      console.log(`${colors.cyan}[INFO] [${tmdbId}] Master playlist detected, picking best variant...${colors.reset}`);
       const parser = new Parser();
       parser.push(m3u8);
       parser.end();
@@ -166,6 +214,8 @@ async function loadStream(req, res) {
     parser.end();
 
     meta = {
+      tmdbId,
+      title,
       segments: parser.manifest.segments.map((seg, i) => {
         try {
           return {
@@ -205,9 +255,20 @@ async function loadStream(req, res) {
 
   startBackgroundDownload(tmdbId);
 
+  const streamUrl = `${baseUrl}/stream/${tmdbId}.m3u8`;
+  const localIp = getLocalIp();
+  const networkUrl = streamUrl.replace("localhost", localIp).replace("127.0.0.1", localIp);
+  
+  console.log(`\n${colors.magenta}${"━".repeat(60)}${colors.reset}`);
+  console.log(`${colors.bright}${colors.cyan}🎬  STREAM READY${colors.reset}`);
+  if (title) console.log(`${colors.bright}${colors.yellow}📺  Title:   ${title}${colors.reset}`);
+  console.log(`${colors.bright}${colors.yellow}🆔  TMDB ID: ${tmdbId}${colors.reset}`);
+  console.log(`${colors.bright}${colors.blue}🔗  URL:      ${colors.reset}${networkUrl}`);
+  console.log(`${colors.magenta}${"━".repeat(60)}${colors.reset}\n`);
+
   res.json({
     message: "Caching started",
-    streamUrl: `${baseUrl}/stream/${tmdbId}.m3u8`
+    streamUrl
   });
 }
 
@@ -351,6 +412,15 @@ async function getCacheList(req, res) {
       const folderPath = path.join(BASE_DIR, folder);
       const stat = await fs.stat(folderPath);
       if (stat.isDirectory()) {
+         const mPath = metaPath(folder);
+         let title = "Unknown Movie";
+         if (await fs.pathExists(mPath)) {
+            try {
+              const m = await fs.readJson(mPath);
+              title = m.title || "Unknown Movie";
+            } catch(e) {}
+         }
+
          const progPath = progressPath(folder);
          let percent = 0;
          if (await fs.pathExists(progPath)) {
@@ -367,7 +437,7 @@ async function getCacheList(req, res) {
              sizeFormatted = (byteSize / (1024 * 1024)).toFixed(2) + " MB";
          }
 
-         list.push({ tmdbId: folder, percent, sizeFormatted });
+         list.push({ tmdbId: folder, title, percent, sizeFormatted });
       }
     }
     res.json(list);
