@@ -324,21 +324,41 @@
     position: absolute;
     bottom: 100%;
     right: 0;
-    margin-bottom: 20px; /* More space for the bar */
-    background: rgba(24, 33, 43, 0.95);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    width: 180px;
-    max-height: 250px;
+    margin-bottom: 8px;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    min-width: 200px;
+    max-width: 280px;
+    max-height: 260px;
+    overflow-x: auto;
     overflow-y: auto;
     z-index: 1100;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
     padding: 8px 0;
-    transition: all 0.3s ease;
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(15px) scale(0.95);
     pointer-events: none;
+    transform-origin: bottom right;
+}
+
+/* Custom Scrollbar for Subtitle Menu */
+.lbp-sub-menu::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.lbp-sub-menu::-webkit-scrollbar-track {
+    background: transparent;
+}
+.lbp-sub-menu::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+}
+.lbp-sub-menu::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
 }
 
 .lbp-sub-menu.visible {
@@ -349,39 +369,61 @@
 }
 
 .lbp-sub-item {
-    padding: 10px 16px;
+    padding: 8px 16px;
     font-size: 13px;
-    color: #cbd5e0;
+    color: #e2e8f0;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background 0.2s ease, color 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    white-space: nowrap;
+    overflow: visible;
+    min-width: max-content;
+    text-overflow: clip;
+    line-height: 1.4;
 }
 
 .lbp-sub-item:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
 }
 
 .lbp-sub-item.active {
     color: #f4c84d;
-    background: rgba(244, 200, 77, 0.1);
+    background: rgba(244, 200, 77, 0.15);
+    font-weight: 500;
 }
 
 .lbp-sub-item.active::before {
     content: '✓';
     font-weight: bold;
+    flex-shrink: 0;
+}
+
+.lbp-sub-item.disabled {
+    color: #94a3b8;
+    background: transparent;
+    cursor: default;
+}
+
+.lbp-sub-item.disabled:hover {
+    background: transparent;
 }
 
 .lbp-sub-header {
-    padding: 8px 16px;
-    font-size: 11px;
+    padding: 10px 20px 6px;
+    font-size: 11.5px;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #718096;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    margin-bottom: 4px;
+    letter-spacing: 1.2px;
+    color: #94a3b8;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 6px;
+    margin-top: 4px;
+}
+.lbp-sub-header:first-child {
+    margin-top: 0;
 }
 
 /* Loading Overlay */

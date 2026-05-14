@@ -81,8 +81,10 @@
 
       <div id="cacheServersBody" class="servers-body hidden">
         <div class="add-actions">
-          <button id="addCacheServerBtn" class="add-btn" type="button">Add Cache Server</button>
-          <button id="manualCacheBtn" class="manual-btn" type="button">Check Manual</button>
+          <div class="actions-row">
+            <button id="addCacheServerBtn" class="add-btn" type="button">Add Cache Server</button>
+            <button id="manualCacheBtn" class="manual-btn" type="button">Check Manual</button>
+          </div>
         </div>
 
         <div id="addCacheServerForm" class="add-form hidden">
@@ -99,33 +101,23 @@
         <p class="saved-tag">Saved Servers:</p>
         <div id="cacheServerList" class="server-list"></div>
 
-        <div class="servers-card" style="border-top:1px solid #202833; padding-top:10px; margin-top:10px;">
-          <div class="servers-head">
-            <button id="openSubtitlesToggleBtn" class="section-toggle" type="button" aria-expanded="false" style="padding: 5px 10px; font-size: 11px; background: transparent; border: 1px solid #273242;">
-              <span>OpenSubtitles API Key</span>
-              <span class="chevron" aria-hidden="true"></span>
-            </button>
-          </div>
-          <div id="openSubtitlesBody" class="add-form hidden" style="margin-top:10px; margin-bottom:0;">
-            <label class="input-label" for="openSubtitlesApiKey">API Key</label>
-            <input id="openSubtitlesApiKey" class="input" type="password" placeholder="Paste API key" />
-            <div class="form-actions">
-              <button id="saveOpenSubtitlesKeyBtn" class="btn primary" type="button">Save Key</button>
-            </div>
-            <p id="openSubtitlesKeyStatus" class="feedback" style="margin-top:5px;"></p>
-          </div>
-        </div>
+      </div>
+    </section>
 
-        <div id="cacheFoldersSection" class="hidden" style="margin-top:10px; border-top:1px solid #202833; padding-top:10px;">
-          <button id="cacheFoldersToggleBtn" class="section-toggle" type="button" aria-expanded="false" style="background:transparent; border:none; padding:0; display:flex; justify-content:space-between; width:100%; cursor:pointer;">
-            <p class="saved-tag" style="margin:0;">Server Caches : <span id="totalCacheSize" style="color:#9eacbf;font-weight:normal;">0.00 MB</span></p>
-            <span class="chevron" aria-hidden="true" style="margin-top:0;"></span>
-          </button>
-          <div id="cacheFoldersBody" class="hidden" style="margin-top:10px;">
-            <div id="cacheFoldersList" class="server-list" style="max-height:150px; overflow-y:auto; padding-right:5px;"></div>
-            <button id="clearAllCacheBtn" class="btn primary" style="width:100%; margin-top:10px; background:#6d3245; border-color:#6d3245; color: #ffc1cf;">Clear all cache</button>
-          </div>
+    <section class="servers-card">
+      <div class="servers-head">
+        <button id="openSubtitlesToggleBtn" class="section-toggle" type="button" aria-expanded="false">
+          <span>OpenSubtitles API Key</span>
+          <span class="chevron" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div id="openSubtitlesBody" class="add-form hidden">
+        <label class="input-label" for="openSubtitlesApiKey">API Key</label>
+        <input id="openSubtitlesApiKey" class="input" type="password" placeholder="Paste API key" />
+        <div class="form-actions">
+          <button id="saveOpenSubtitlesKeyBtn" class="btn primary" type="button">Save Key</button>
         </div>
+        <p id="openSubtitlesKeyStatus" class="feedback"></p>
       </div>
     </section>
 

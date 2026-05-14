@@ -681,12 +681,6 @@ const openSubtitlesKeyStatus = document.getElementById("openSubtitlesKeyStatus")
 const openSubtitlesToggleBtn = document.getElementById("openSubtitlesToggleBtn");
 const openSubtitlesBody = document.getElementById("openSubtitlesBody");
 
-const cacheFoldersSection = document.getElementById("cacheFoldersSection");
-const cacheFoldersList = document.getElementById("cacheFoldersList");
-const clearAllCacheBtn = document.getElementById("clearAllCacheBtn");
-const cacheFoldersToggleBtn = document.getElementById("cacheFoldersToggleBtn");
-const cacheFoldersBody = document.getElementById("cacheFoldersBody");
-
 const STORAGE_CACHE_SERVERS = "cacheServers";
 const STORAGE_SELECTED_CACHE = "selectedCacheServer";
 const defaultCacheServer = "http://localhost:6769";
@@ -736,53 +730,6 @@ async function loadOpenSubtitlesKeyStatus(serverUrl) {
   }
 }
 
-async function renderCacheFolders(serverUrl) {
-  try {
-    const res = await fetch(`${serverUrl}/cache`);
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-    cacheFoldersSection.classList.remove("hidden");
-    cacheFoldersList.innerHTML = "";
-    
-    try {
-       const sizeRes = await fetch(`${serverUrl}/cache/size`);
-       if (sizeRes.ok) {
-           const sizeData = await sizeRes.json();
-           const sizeEl = document.getElementById("totalCacheSize");
-           if (sizeEl) sizeEl.textContent = `${sizeData.formatted}`;
-       }
-    } catch (e) {
-       const sizeEl = document.getElementById("totalCacheSize");
-       if (sizeEl) sizeEl.textContent = "N/A";
-    }
-
-    if (data.length === 0) {
-       cacheFoldersList.innerHTML = "<p style='color:#9eacbf;font-size:11px'>No caches found.</p>";
-    }
-    data.forEach(c => {
-       const row = document.createElement("div");
-       row.className = "server-item custom";
-       row.style.marginBottom = "5px";
-       row.innerHTML = `
-         <div class="server-row" style="align-items:center;">
-           <div style="flex:1;">
-             <p class="server-name" style="margin:0;">🎬 ${c.title}</p>
-             <p class="server-link" style="margin:0; margin-top:3px;">TMDB: ${c.tmdbId} | ${c.percent}% Cached (${c.sizeFormatted})</p>
-           </div>
-           <button class="server-delete delete-folder-btn" style="padding:4px 8px" data-tmdb="${c.tmdbId}">Delete</button>
-         </div>
-       `;
-       row.querySelector('.delete-folder-btn').onclick = async () => {
-          await fetch(`${serverUrl}/cache/${c.tmdbId}`, { method: 'DELETE' });
-          renderCacheFolders(serverUrl);
-       };
-       cacheFoldersList.appendChild(row);
-    });
-  } catch(e) {
-    cacheFoldersSection.classList.add("hidden");
-  }
-}
-
 async function renderCacheServerList() {
   getCacheServers((servers, selected) => {
     chrome.storage.local.get({ cacheServerOnline: false }, (res) => {
@@ -812,6 +759,15 @@ async function renderCacheServerList() {
         `;
         
         const row = item.querySelector('.server-row');
+        const viewBtn = document.createElement("button");
+        viewBtn.className = "server-view";
+        viewBtn.title = "Open cache server in new tab";
+        viewBtn.innerHTML = `
+          <span class="server-view-icon">👁</span>
+          <span class="server-view-label">Caches</span>
+        `;
+        viewBtn.onclick = () => chrome.tabs.create({ url: srv });
+        row.appendChild(viewBtn);
         
         if (!isSelected) {
           const selBtn = document.createElement("button");
@@ -832,7 +788,6 @@ async function renderCacheServerList() {
                  }, () => {
                     chrome.runtime.sendMessage({ type: 'FORCE_HEALTH_CHECK' }).catch(()=>{});
                     renderCacheServerList();
-                    renderCacheFolders(srv);
                  });
               } else {
                  alert("Server not online or invalid!");
@@ -856,7 +811,6 @@ async function renderCacheServerList() {
             let newSelected = selected === srv ? defaultCacheServer : selected;
             chrome.storage.local.set({ [STORAGE_CACHE_SERVERS]: newList, [STORAGE_SELECTED_CACHE]: newSelected }, () => {
                renderCacheServerList();
-               if (selected === srv) renderCacheFolders(newSelected);
             });
           };
           row.appendChild(delBtn);
@@ -865,11 +819,6 @@ async function renderCacheServerList() {
         cacheServerList.appendChild(item);
       });
       
-      if (!isSelectedOnline) {
-         cacheFoldersSection.classList.add("hidden");
-      } else {
-         renderCacheFolders(selected);
-      }
       loadOpenSubtitlesKeyStatus(selected);
     });
   });
@@ -954,9 +903,6 @@ saveOpenSubtitlesKeyBtn.onclick = async () => {
 cacheServersToggleBtn.onclick = () => {
   const hidden = cacheServersBody.classList.toggle("hidden");
   cacheServersToggleBtn.setAttribute("aria-expanded", String(!hidden));
-  if (!hidden) {
-    getCacheServers((_, selected) => renderCacheFolders(selected));
-  }
 };
 
 addCacheServerBtn.onclick = () => {
@@ -965,20 +911,6 @@ addCacheServerBtn.onclick = () => {
 };
 
 manualCacheBtn.onclick = () => chrome.tabs.create({url: manualUrl});
-
-clearAllCacheBtn.onclick = async () => {
-  getCacheServers(async (_, selected) => {
-     if (confirm("Clear all cache folders?")) {
-        await fetch(`${selected}/cache`, { method: 'DELETE' });
-        renderCacheFolders(selected);
-     }
-  });
-};
-
-cacheFoldersToggleBtn.onclick = () => {
-  const hidden = cacheFoldersBody.classList.toggle("hidden");
-  cacheFoldersToggleBtn.setAttribute("aria-expanded", String(!hidden));
-};
 
 openSubtitlesToggleBtn.onclick = () => {
   const hidden = openSubtitlesBody.classList.toggle("hidden");

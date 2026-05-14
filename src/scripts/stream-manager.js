@@ -548,6 +548,7 @@
                         });
 
                         if (openSubCandidates.length > 0) {
+                            const existingLabels = new Set(Array.from(video.textTracks).map((t) => t.label));
                             const openSubHeader = document.createElement('div');
                             openSubHeader.className = 'lbp-sub-header';
                             openSubHeader.textContent = 'OpenSubtitles (EN)';
@@ -555,40 +556,43 @@
 
                             openSubCandidates.forEach((candidate) => {
                                 const cItem = document.createElement('div');
-                                cItem.className = 'lbp-sub-item';
                                 const label = candidate.fileName || `Subtitle ${candidate.fileId}`;
+                                const isDownloaded = existingLabels.has(candidate.fileName || '');
                                 const isDownloading = downloadingOpenSubFileId === candidate.fileId;
-                                cItem.textContent = isDownloading ? `Downloading... ${label}` : `+ ${label}`;
-                                cItem.style.opacity = isDownloading ? '0.7' : '1';
-                                cItem.onclick = async () => {
-                                    if (isDownloading) return;
-                                    downloadingOpenSubFileId = candidate.fileId;
-                                    updateMenu();
-                                    try {
-                                        await fetch(`${C_SERVER}/subtitle/opensubtitles/fetch`, {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({
-                                                tmdbId,
-                                                fileId: candidate.fileId,
-                                                fileName: candidate.fileName || `${candidate.id || candidate.fileId}.srt`
-                                            })
-                                        });
-                                        await syncTracksFromServer();
-                                        const targetTrack = Array.from(video.textTracks).find(
-                                            (t) => t.label === (candidate.fileName || '')
-                                        );
-                                        if (targetTrack) {
-                                            Array.from(video.textTracks).forEach(t => t.mode = 'disabled');
-                                            targetTrack.mode = 'showing';
-                                        }
-                                        openSubCandidates = openSubCandidates.filter((x) => x.fileId !== candidate.fileId);
-                                    } catch (_) {
-                                    } finally {
-                                        downloadingOpenSubFileId = null;
+                                cItem.className = `lbp-sub-item${isDownloaded ? ' disabled' : ''}`;
+                                cItem.textContent = isDownloading ? `Downloading... ${label}` : `${isDownloaded ? label : `+ ${label}`}`;
+                                cItem.style.opacity = isDownloaded ? '0.55' : (isDownloading ? '0.7' : '1');
+                                if (!isDownloaded) {
+                                    cItem.onclick = async () => {
+                                        if (isDownloading) return;
+                                        downloadingOpenSubFileId = candidate.fileId;
                                         updateMenu();
-                                    }
-                                };
+                                        try {
+                                            await fetch(`${C_SERVER}/subtitle/opensubtitles/fetch`, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    tmdbId,
+                                                    fileId: candidate.fileId,
+                                                    fileName: candidate.fileName || `${candidate.id || candidate.fileId}.srt`
+                                                })
+                                            });
+                                            await syncTracksFromServer();
+                                            const targetTrack = Array.from(video.textTracks).find(
+                                                (t) => t.label === (candidate.fileName || '')
+                                            );
+                                            if (targetTrack) {
+                                                Array.from(video.textTracks).forEach(t => t.mode = 'disabled');
+                                                targetTrack.mode = 'showing';
+                                            }
+                                            openSubCandidates = openSubCandidates.filter((x) => x.fileId !== candidate.fileId);
+                                        } catch (_) {
+                                        } finally {
+                                            downloadingOpenSubFileId = null;
+                                            updateMenu();
+                                        }
+                                    };
+                                }
                                 subMenu.appendChild(cItem);
                             });
                         }
@@ -657,10 +661,8 @@
                                 updateMenu();
                                 return;
                             }
-                            const existingLabels = new Set(Array.from(video.textTracks).map((t) => t.label));
                             openSubCandidates = candidates
-                                .filter((c) => c && c.fileId)
-                                .filter((c) => !existingLabels.has(c.fileName || ''));
+                                .filter((c) => c && c.fileId);
                             updateMenu();
                         } catch (_) {}
                     };

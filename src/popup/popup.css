@@ -291,6 +291,10 @@ h1 {
   margin-bottom: 10px;
 }
 
+#openSubtitlesBody {
+  margin-top: 10px;
+}
+
 .input-label {
   display: block;
   font-size: 11px;
@@ -438,6 +442,38 @@ h1 {
 
 .server-delete:hover {
   background: #4a2532;
+}
+
+.server-view {
+  background: #23384d;
+  border: 1px solid #3d5b79;
+  color: #d5e6fb;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 6px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 42px;
+}
+
+.server-view:hover {
+  background: #324e69;
+}
+
+.server-view-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.server-view-label {
+  font-size: 10px;
+  color: #b8d1ee;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 .popup-footer {
