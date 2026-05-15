@@ -180,10 +180,15 @@ async function searchOpenSubtitles(req, res) {
         const attrs = item?.attributes || {};
         const files = Array.isArray(attrs.files) ? attrs.files : [];
         const firstFile = files[0] || {};
+        let fileName = firstFile?.file_name || attrs?.release || "";
+        // Decode URL-encoded filename
+        try {
+          fileName = decodeURIComponent(fileName);
+        } catch (_) {}
         return {
           id: item?.id || null,
           fileId: firstFile?.file_id || null,
-          fileName: firstFile?.file_name || attrs?.release || "",
+          fileName,
           language: attrs?.language || "",
           release: attrs?.release || "",
           hearingImpaired: Boolean(attrs?.hearing_impaired),
@@ -256,6 +261,14 @@ async function fetchOpenSubtitlesCandidate(req, res) {
 
     let resolvedName = String(fileName || dlData?.file_name || `opensub_${fileId}.srt`).trim();
     if (!resolvedName) resolvedName = `opensub_${fileId}.srt`;
+    
+    // Decode URL-encoded characters (e.g., %20 → space)
+    try {
+      resolvedName = decodeURIComponent(resolvedName);
+    } catch (_) {
+      // If decoding fails, keep the original
+    }
+    
     resolvedName = resolvedName.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
     const filePath = path.join(subDir, resolvedName);
     await fs.writeFile(filePath, buffer);

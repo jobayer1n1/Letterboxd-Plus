@@ -139,6 +139,12 @@ async function downloadSegmentWorker(tmdbId, id) {
           fileStream.on('error', reject);
       });
 
+      // Verify file was actually written and has minimum size
+      const stat = await fs.stat(filePath);
+      if (stat.size < 100) {
+        throw new Error(`Segment too small (${stat.size} bytes) — likely incomplete`);
+      }
+
       seg.downloaded = true;
       await fs.writeJson(metaPath(tmdbId), state.meta);
       updateProgress(tmdbId);

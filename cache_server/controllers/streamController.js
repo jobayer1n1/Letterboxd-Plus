@@ -344,12 +344,14 @@ async function serveSegment(req, res) {
     const nodeStream = response.body.on ? response.body : Readable.fromWeb(response.body);
     const fileStream = fs.createWriteStream(filePath);
     
+    let bytesReceived = 0;
     nodeStream.on("data", (chunk) => {
         state.totalDownloaded += chunk.length;
+        bytesReceived += chunk.length;
     });
 
+    // Download to disk FIRST, don't stream to response yet
     nodeStream.pipe(fileStream);
-    nodeStream.pipe(res);
 
     await new Promise((resolve, reject) => {
         fileStream.on('finish', resolve);
@@ -357,9 +359,19 @@ async function serveSegment(req, res) {
         fileStream.on('error', reject);
     });
 
+    // Verify file integrity before sending to client
+    const stat = await fs.stat(filePath);
+    if (stat.size < 100) {
+        await fs.remove(filePath);
+        throw new Error(`Segment incomplete: received ${stat.size} bytes, expected > 100`);
+    }
+
     seg.downloaded = true;
     await fs.writeJson(metaPath(tmdbId), state.meta);
     updateProgress(tmdbId);
+
+    // NOW stream the verified file to the response
+    return fs.createReadStream(filePath).pipe(res);
   } catch(e) {
     console.error(`[ERROR] [${tmdbId}] Segment pipe error for ${id}:`, e.message);
     if (!res.headersSent) res.status(500).send(e.message);
